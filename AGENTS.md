@@ -39,3 +39,13 @@ Docs: https://docs.expo.dev/eas/index.md
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md
+
+## L8R project notes
+
+- The reveal is enforced in Postgres/Storage policies (`supabase/migrations`). Never add a client-side path that reads trip media or mints signed URLs outside `liveBackend.listMedia`/`mediaUrl`, and never show local copies of queued uploads.
+- Any schema/policy change needs a matching case in `supabase/tests/policies.test.mjs` (`npm run test:policies`).
+- UI reads data only through `useBackend()`. Preview mode has no banner (by request); keep sample content visually placeholder-only.
+- Layout comes from `useLayout()` (window-size based). Don't hard-code device sizes.
+- Liquid Glass only via `ui/primitives` `Glass`, for floating controls, not content backgrounds.
+- Don't log tokens, signed URLs, storage paths, or user data.
+- Lint with `npx eslint src app.config.ts` (`expo lint` misdetects the ESLint version in this setup).

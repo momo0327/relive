@@ -1,0 +1,10 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["[TEAM_ID].[BUNDLE_ID]"],
+        "components": [{ "/": "/join/*", "comment": "Trip invites open in the app" }]
+      }
+    ]
+  }
+}
