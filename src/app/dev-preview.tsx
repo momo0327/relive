@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useSession } from '@/lib/session';
 
 /**
- * Development-only shortcut (l8r://dev-preview or exp://…/--/dev-preview):
+ * Development-only shortcut (relive://dev-preview or exp://…/--/dev-preview):
  * opens preview mode with onboarding skipped, so simulators can be driven by
  * deep links for layout checks. Does nothing in release builds.
  */

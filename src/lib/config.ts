@@ -10,7 +10,7 @@ export const config = {
   supabaseKey,
   /** True when the app can talk to a real backend. */
   hasBackend: supabaseUrl.startsWith('https://') && supabaseKey.length > 0,
-  /** Optional https origin with universal links configured, e.g. https://l8r.app */
+  /** Optional https origin with universal links configured, e.g. https://relive.app */
   inviteBaseUrl: (process.env.EXPO_PUBLIC_INVITE_BASE_URL ?? '').replace(/\/$/, ''),
   privacyPolicyUrl: process.env.EXPO_PUBLIC_PRIVACY_URL ?? '',
   termsUrl: process.env.EXPO_PUBLIC_TERMS_URL ?? '',

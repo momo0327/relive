@@ -46,7 +46,6 @@ export default function JoinWithLink() {
           placeholderTextColor={c.textTertiary}
           autoCapitalize="none"
           autoCorrect={false}
-          autoFocus
           keyboardType="url"
           returnKeyType="go"
           onSubmitEditing={join}
@@ -55,7 +54,7 @@ export default function JoinWithLink() {
         />
         {showError ? (
           <Txt variant="footnote" tone="danger" accessibilityLiveRegion="polite">
-            This doesn’t look like an L8R invite link.
+            This doesn’t look like an Relive invite link.
           </Txt>
         ) : null}
         <Button title="Paste from clipboard" icon="doc.on.clipboard" kind="secondary" onPress={paste} />

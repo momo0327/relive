@@ -22,7 +22,7 @@ export function useExportMemories(tripId: string) {
     }
     const permission = await MediaLibrary.requestPermissionsAsync(true);
     if (!permission.granted) {
-      Alert.alert('Allow adding to Photos', 'L8R needs permission to add memories to your photo library.', [
+      Alert.alert('Allow adding to Photos', 'Relive needs permission to add memories to your photo library.', [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Open Settings', onPress: () => Linking.openSettings() },
       ]);

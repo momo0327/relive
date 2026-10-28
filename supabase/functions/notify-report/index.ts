@@ -32,7 +32,7 @@ Deno.serve(async (req) => {
     const projectRef = new URL(Deno.env.get('SUPABASE_URL') ?? '').hostname.split('.')[0];
     const tripName = (report.trips as { name?: string } | null)?.name ?? 'unknown trip';
     const target = report.media_id ? 'a memory' : 'a member';
-    const subject = `L8R report: ${report.reason} (${target})`;
+    const subject = `Relive report: ${report.reason} (${target})`;
     const text = [
       `A ${report.reason} report was filed about ${target} in “${tripName}”.`,
       report.details ? `Details: ${report.details}` : null,
@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
         method: 'POST',
         headers: { authorization: `Bearer ${resendKey}`, 'content-type': 'application/json' },
         body: JSON.stringify({
-          from: Deno.env.get('REPORT_EMAIL_FROM') ?? 'L8R Reports <onboarding@resend.dev>',
+          from: Deno.env.get('REPORT_EMAIL_FROM') ?? 'Relive Reports <onboarding@resend.dev>',
           to: [emailTo],
           subject,
           text,

@@ -6,6 +6,7 @@ import { Alert, Linking, Pressable, ScrollView, StyleSheet, Switch, View } from 
 
 import { useAppearancePref } from '@/lib/appearance';
 import { config } from '@/lib/config';
+import { ensureNotificationPermission, notificationsEnabled, setNotificationsEnabled, syncTripNotifications } from '@/lib/notifications';
 import { CancelledError, useSession } from '@/lib/session';
 import type { Profile } from '@/lib/types';
 import { useUploads } from '@/lib/uploads';
@@ -24,6 +25,21 @@ export default function Settings() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [reminders, setReminders] = useState(notificationsEnabled);
+
+  async function toggleReminders(on: boolean) {
+    setNotificationsEnabled(on);
+    setReminders(on);
+    if (!on || mode !== 'live') return;
+    if (!(await ensureNotificationPermission())) {
+      Alert.alert('Notifications are off', 'Allow notifications for Relive in iOS Settings to get trip reminders.', [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Open Settings', onPress: () => Linking.openSettings() },
+      ]);
+      return;
+    }
+    backend.listTrips().then(syncTripNotifications).catch(() => undefined);
+  }
   const pending = items.filter((i) => i.status !== 'done').length;
   const preview = mode === 'preview';
 
@@ -141,6 +157,9 @@ export default function Settings() {
               accessibilityLabel="Dark mode"
             />
           </SettingsRow>
+          <SettingsRow icon="bell" label="Trip reminders">
+            <Switch value={reminders} onValueChange={toggleReminders} accessibilityLabel="Trip reminders" />
+          </SettingsRow>
           <SettingsRow
             icon="hand.raised"
             label="Privacy Policy"
@@ -178,7 +197,7 @@ export default function Settings() {
         </View>
 
         <Txt variant="footnote" tone="tertiary" style={{ textAlign: 'center' }}>
-          L8R {version}
+          Relive {version}
         </Txt>
       </View>
     </ScrollView>

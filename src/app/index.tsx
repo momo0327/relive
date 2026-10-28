@@ -3,20 +3,27 @@ import { useEffect } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { formatTripDates, plural } from '@/lib/format';
+import { syncTripNotifications } from '@/lib/notifications';
 import { useSession } from '@/lib/session';
 import type { TripSummary } from '@/lib/types';
 import { useLoad } from '@/lib/use-load';
 import { useLayout } from '@/ui/layout';
-import { Button, Txt } from '@/ui/primitives';
+import { FloatingButton } from '@/ui/floating-button';
+import { Txt } from '@/ui/primitives';
 import { ErrorState, LoadingState, MessageState } from '@/ui/states';
 import { space, useTheme } from '@/ui/theme';
-import { Cover } from '@/ui/trip-visuals';
+import { TripPoster } from '@/ui/trip-poster';
 
 export default function MyTrips() {
   const router = useRouter();
   const { backend, pendingInvite, setPendingInvite, mode } = useSession();
   const { gutter, contentWidth, tripColumns } = useLayout();
   const { data, error, refreshing, reload } = useLoad(() => backend.listTrips());
+
+  // Keep this device's reminders and reveal alerts in step with the trip list.
+  useEffect(() => {
+    if (data && mode === 'live') syncTripNotifications(data).catch(() => undefined);
+  }, [data, mode]);
 
   // Continue an invite that was opened before signing in.
   useEffect(() => {
@@ -33,14 +40,17 @@ export default function MyTrips() {
         <Stack.Toolbar.Button icon="person.crop.circle" accessibilityLabel="Settings" onPress={() => router.push('/account')} />
       </Stack.Toolbar>
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button
-          icon="link"
-          separateBackground
-          accessibilityLabel="Join a trip with a link"
-          onPress={() => router.push('/join-link')}
-        />
-        <Stack.Toolbar.Button icon="plus" separateBackground accessibilityLabel="New trip" onPress={() => router.push('/trips/new')} />
+        <Stack.Toolbar.Button icon="link" accessibilityLabel="Join a trip with a link" onPress={() => router.push('/join-link')} />
       </Stack.Toolbar>
+      <Stack.Screen
+        options={{
+          headerTitle: () => (
+            <Txt maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.wordmark}>
+              relive
+            </Txt>
+          ),
+        }}
+      />
     </>
   );
 
@@ -70,7 +80,7 @@ export default function MyTrips() {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} />}
-        contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: space.xxxl, alignItems: 'center' }}>
+        contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: 120, alignItems: 'center' }}>
         <View style={{ width: contentWidth, gap: space.xl, paddingTop: space.md }}>
           <PageHeading title="Memories" />
           {trips.length === 0 ? (
@@ -89,11 +99,9 @@ export default function MyTrips() {
               ))}
             </View>
           )}
-          {trips.length > 0 ? (
-            <Button title="New trip" icon="plus" kind="secondary" onPress={() => router.push('/trips/new')} />
-          ) : null}
         </View>
       </ScrollView>
+      <FloatingButton icon="plus" variant="plain" label="New trip" onPress={() => router.push('/trips/new')} />
     </>
   );
 }
@@ -113,11 +121,7 @@ function TripCard({ trip, width }: { trip: TripSummary; width: number }) {
       accessibilityLabel={a11y}
       onPress={() => router.push(`/trips/${trip.id}`)}
       style={({ pressed }) => ({ width, opacity: pressed ? 0.85 : 1 })}>
-      <Cover uri={trip.coverUrl} cacheKey={trip.coverKey} seed={trip.id} scrim={false} style={{ aspectRatio: 4 / 5 }}>
-        <View style={[StyleSheet.absoluteFill, styles.titleWrap]} pointerEvents="none">
-          <CardTitle name={trip.name} color={trip.coverTone === 'light' ? '#0E0F10' : '#FFFFFF'} />
-        </View>
-      </Cover>
+      <TripPoster name={trip.name} coverUrl={trip.coverUrl} coverKey={trip.coverKey} tone={trip.coverTone} seed={trip.id} />
     </Pressable>
   );
 }
@@ -138,27 +142,9 @@ function PageHeading({ title }: { title: string }) {
   );
 }
 
-/** Trip name centred on the cover; text colour follows the cover's measured brightness. */
-/** Trip name on the cover; black on bright covers, white on dark ones. */
-function CardTitle({ name, color }: { name: string; color: string }) {
-  return (
-    <Txt variant="largeTitle" numberOfLines={3} maxFontSizeMultiplier={1.4} style={[styles.title, { color }]}>
-      {name.toLocaleUpperCase()}
-    </Txt>
-  );
-}
-
 const styles = StyleSheet.create({
+  wordmark: { fontFamily: 'Inter_600SemiBold', fontWeight: '600', fontSize: 21, letterSpacing: -0.3 },
   heading: { alignSelf: 'center', alignItems: 'center', marginBottom: space.sm },
   underline: { alignSelf: 'stretch', alignItems: 'center', marginTop: 2 },
   stroke: { height: 2, borderRadius: 1 },
-  // Upper part of the card, like a travel poster.
-  titleWrap: { alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: space.xl, paddingTop: '11%' },
-  title: {
-    fontFamily: 'ProtestStrike_400Regular',
-    fontWeight: 'normal',
-    fontSize: 60,
-    lineHeight: 60,
-    textAlign: 'center',
-  },
 });

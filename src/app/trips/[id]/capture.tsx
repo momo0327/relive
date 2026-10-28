@@ -6,9 +6,9 @@ import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { limits } from '@/lib/config';
-import { PrepError, preparePhoto, prepareVideo } from '@/lib/media-prep';
 import { useLibraryPicker } from '@/lib/use-library-picker';
 import { useTripUploads } from '@/lib/uploads';
+import { CapturePreview, type Shot } from '@/screens/capture-preview';
 import { useA11yPrefs } from '@/ui/a11y';
 import { useLayout } from '@/ui/layout';
 import { Button, Glass, IconButton, Row, Txt } from '@/ui/primitives';
@@ -32,7 +32,9 @@ export default function Capture() {
   const [recordingSince, setRecordingSince] = useState<number | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [flashShutter, setFlashShutter] = useState(false);
-  const { items, enqueue } = useTripUploads(tripId);
+  const { items } = useTripUploads(tripId);
+  // The shot being reviewed (Retake / Upload) before it joins the trip.
+  const [shot, setShot] = useState<Shot | null>(null);
   const library = useLibraryPicker(tripId);
 
   // Ask for the camera only when this screen opens.
@@ -64,10 +66,9 @@ export default function Capture() {
     }
     try {
       const photo = await camera.current.takePictureAsync({ quality: 1, exif: false, shutterSound: true });
-      const media = await preparePhoto({ tripId, uri: photo.uri, width: photo.width, height: photo.height });
-      enqueue([media]);
-    } catch (error) {
-      Alert.alert('Couldn’t take photo', error instanceof PrepError ? error.message : 'Please try again.');
+      setShot({ kind: 'photo', uri: photo.uri, width: photo.width, height: photo.height });
+    } catch {
+      Alert.alert('Couldn’t take photo', 'Please try again.');
     }
   }
 
@@ -84,12 +85,9 @@ export default function Capture() {
     try {
       const result = await camera.current.recordAsync({ maxDuration: limits.maxVideoSeconds, maxFileSize: limits.maxUploadBytes });
       const durationMs = Math.min(Date.now() - started, limits.maxVideoSeconds * 1000);
-      if (result?.uri) {
-        const media = await prepareVideo({ tripId, uri: result.uri, durationMs, width: 0, height: 0, fromCamera: true });
-        enqueue([media]);
-      }
-    } catch (error) {
-      Alert.alert('Couldn’t record video', error instanceof PrepError ? error.message : 'Please try again.');
+      if (result?.uri) setShot({ kind: 'video', uri: result.uri, durationMs });
+    } catch {
+      Alert.alert('Couldn’t record video', 'Please try again.');
     } finally {
       setRecordingSince(null);
     }
@@ -108,7 +106,7 @@ export default function Capture() {
             Camera access
           </Txt>
           <Txt variant="body" style={{ color: 'rgba(255,255,255,0.75)', textAlign: 'center' }}>
-            L8R uses the camera to capture memories for this trip. Photos and videos go straight into the sealed trip.
+            Relive uses the camera to capture memories for this trip. Photos and videos go straight into the sealed trip.
             Nothing is shown until the trip ends.
           </Txt>
           {cameraPermission.canAskAgain ? (
@@ -117,6 +115,14 @@ export default function Capture() {
             <Button title="Open Settings" onPress={() => Linking.openSettings()} />
           )}
         </View>
+      </View>
+    );
+  }
+
+  if (shot) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#000' }}>
+        <CapturePreview tripId={tripId} shot={shot} onRetake={() => setShot(null)} onDone={() => router.back()} />
       </View>
     );
   }

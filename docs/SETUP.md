@@ -22,7 +22,7 @@ Expo Go can open most of the app (`npx expo start`), but use a development build
    ```
    Or paste `supabase/migrations/20261026000000_l8r_core.sql` into the SQL editor.
 3. Check that the buckets `trip-media` and `trip-covers` exist and are **private** (Storage → Buckets).
-4. Auth → URL Configuration → add redirect URL `l8r://auth-callback`. For Expo Go, also add `exp://**`.
+4. Auth → URL Configuration → add redirect URL `relive://auth-callback`. For Expo Go, also add `exp://**`.
 
 ### Sign in with Apple (required, Guideline 4.8)
 
@@ -68,7 +68,7 @@ For EAS builds, put the same values in EAS environment variables (`npx eas-cli@l
 
 ## 5. Invite links (universal links, recommended)
 
-Without a domain, invites use `l8r://join/<token>`. That opens the app, but some messaging apps don't make custom schemes tappable. For production:
+Without a domain, invites use `relive://join/<token>`. That opens the app, but some messaging apps don't make custom schemes tappable. For production:
 
 1. Set `EXPO_PUBLIC_INVITE_BASE_URL=https://<your-domain>`. `app.config.ts` then adds `applinks:<your-domain>`.
 2. Host `https://<your-domain>/.well-known/apple-app-site-association`:

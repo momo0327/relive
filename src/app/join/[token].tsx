@@ -5,6 +5,7 @@ import { Alert, ScrollView, View } from 'react-native';
 import { friendlyError } from '@/lib/errors';
 import { formatRevealMoment, formatTripDates, plural } from '@/lib/format';
 import { parseInviteToken } from '@/lib/invite-link';
+import { ensureNotificationPermission } from '@/lib/notifications';
 import { useSession } from '@/lib/session';
 import type { InvitePreview } from '@/lib/types';
 import { useLayout } from '@/ui/layout';
@@ -78,6 +79,7 @@ export default function JoinTrip() {
     try {
       const tripId = await backend.acceptInvite(token!);
       if (!tripId) throw new Error('invalid_invite');
+      ensureNotificationPermission().catch(() => undefined);
       router.replace(`/trips/${tripId}`);
     } catch (e) {
       Alert.alert('Couldn’t join', friendlyError(e, 'This invite is no longer valid.'));

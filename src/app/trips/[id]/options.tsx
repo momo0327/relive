@@ -170,9 +170,20 @@ export default function TripOptions() {
         </Txt>
       </View>
 
-      {trip.status !== 'revealed' ? (
+      {trip.isOwner || trip.status !== 'revealed' ? (
         <SettingsCard>
-          <SettingsRow icon="link" label="Invite friends" chevron last onPress={() => router.push(`/trips/${id}/invite`)} />
+          {trip.isOwner ? (
+            <SettingsRow
+              icon="pencil"
+              label="Edit name & cover"
+              chevron
+              last={trip.status === 'revealed'}
+              onPress={() => router.push(`/trips/${id}/edit`)}
+            />
+          ) : null}
+          {trip.status !== 'revealed' ? (
+            <SettingsRow icon="link" label="Invite friends" chevron last onPress={() => router.push(`/trips/${id}/invite`)} />
+          ) : null}
         </SettingsCard>
       ) : null}
     </SheetLayout>

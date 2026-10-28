@@ -1,18 +1,16 @@
 import { BlurView } from 'expo-blur';
-import { GlassView, isGlassEffectAPIAvailable } from 'expo-glass-effect';
-import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused, useRouter } from 'expo-router';
 import type { SymbolViewProps } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { formatBytes, formatDuration, formatRevealMoment, plural, splitDuration, spokenDuration } from '@/lib/format';
 import type { TripDetail } from '@/lib/types';
 import { useTripUploads, type QueueItem } from '@/lib/uploads';
 import { useA11yPrefs } from '@/ui/a11y';
 import { useLayout } from '@/ui/layout';
+import { FloatingButton } from '@/ui/floating-button';
 import { MembersRow } from '@/ui/members-row';
 import { Button, Card, Icon, Row, Txt } from '@/ui/primitives';
 import { radius, space, useTheme } from '@/ui/theme';
@@ -110,51 +108,13 @@ export function LockedTripView({
         </View>
       </ScrollView>
 
-      <CaptureButton onPress={() => router.push(`/trips/${trip.id}/capture`)} />
+      <FloatingButton
+        icon="camera.fill"
+        label="Capture a memory"
+        hint="Opens the camera. You can also add from your library there."
+        onPress={() => router.push(`/trips/${trip.id}/capture`)}
+      />
     </View>
-  );
-}
-
-const glassSupported = Platform.OS === 'ios' && isGlassEffectAPIAvailable();
-
-/**
- * Large floating "+" that opens the camera: Liquid Glass on iOS 26, solid
- * elsewhere. Black in light mode and white in dark mode, for contrast.
- */
-function CaptureButton({ onPress }: { onPress: () => void }) {
-  const c = useTheme();
-  const dark = c.scheme === 'dark';
-  const insets = useSafeAreaInsets();
-  const { gutter } = useLayout();
-  const { reduceTransparency } = useA11yPrefs();
-  const glass = glassSupported && !reduceTransparency;
-  const icon = <Icon name="plus" size={30} color={dark ? '#0E0F10' : '#FFFFFF'} weight="semibold" />;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel="Capture a memory"
-      accessibilityHint="Opens the camera. You can also add from your library there."
-      onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
-        onPress();
-      }}
-      style={({ pressed }) => [
-        styles.captureButton,
-        { right: gutter, bottom: Math.max(insets.bottom, space.lg) + space.sm, transform: [{ scale: pressed ? 0.94 : 1 }] },
-        !glass && [styles.captureFallback, { backgroundColor: dark ? '#FFFFFF' : '#0E0F10' }],
-      ]}>
-      {glass ? (
-        <GlassView
-          glassEffectStyle="regular"
-          tintColor={dark ? 'rgba(255,255,255,0.92)' : 'rgba(14,15,16,0.92)'}
-          isInteractive
-          style={styles.captureInner}>
-          {icon}
-        </GlassView>
-      ) : (
-        icon
-      )}
-    </Pressable>
   );
 }
 
@@ -338,16 +298,6 @@ function UploadPanel({
 }
 
 const styles = StyleSheet.create({
-  captureButton: { position: 'absolute', width: 68, height: 68, borderRadius: 34 },
-  captureInner: { flex: 1, borderRadius: 34, alignItems: 'center', justifyContent: 'center' },
-  captureFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-  },
   panel: {
     borderRadius: radius.xl,
     borderWidth: StyleSheet.hairlineWidth,

@@ -46,7 +46,7 @@ export default function Welcome() {
           <View style={{ width: readableWidth, flex: 1, justifyContent: 'space-between', gap: space.xxl }}>
             <View style={{ gap: space.md, paddingTop: space.xxxl }}>
               <Txt variant="hero" style={{ fontSize: 64, lineHeight: 70 }} accessibilityRole="header">
-                L8R
+                Relive
               </Txt>
               <Txt variant="title2">Capture now. Relive later.</Txt>
               <Txt variant="body" tone="secondary">

@@ -135,6 +135,16 @@ export const previewBackend: Backend = {
     return id;
   },
 
+  async updateTrip(tripId, { name, coverUri }) {
+    const trip = findTrip(tripId);
+    if (name !== undefined) trip.name = name.trim();
+    if (coverUri) {
+      trip.coverUrl = coverUri;
+      trip.coverKey = coverUri;
+      trip.coverTone = await measureTone(coverUri);
+    }
+  },
+
   async createInvite() {
     return `preview${Crypto.randomUUID().replace(/-/g, '').slice(0, 25)}`;
   },

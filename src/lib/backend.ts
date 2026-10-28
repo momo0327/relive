@@ -21,6 +21,8 @@ export interface Backend {
   listTrips(): Promise<TripSummary[]>;
   getTrip(tripId: string): Promise<TripDetail>;
   createTrip(input: { name: string; startsAt: Date; unlocksAt: Date; coverUri: string | null }): Promise<string>;
+  /** Organizer only. Dates can't change; a new cover replaces the old one. */
+  updateTrip(tripId: string, patch: { name?: string; coverUri?: string }): Promise<void>;
   createInvite(tripId: string): Promise<string>;
   revokeInvites(tripId: string): Promise<void>;
   previewInvite(token: string): Promise<InvitePreview | null>;

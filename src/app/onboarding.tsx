@@ -18,7 +18,7 @@ const pages: { icon: SymbolViewProps['name']; title: string; body: string }[] = 
   {
     icon: 'lock.fill',
     title: 'Everything stays hidden',
-    body: 'No previews, no peeking. Not even your own shots. Stay in the moment and keep the phone in your pocket.',
+    body: 'Once a memory is added, nobody can peek. Not even you. Stay in the moment and keep the phone in your pocket.',
   },
   {
     icon: 'sparkles',

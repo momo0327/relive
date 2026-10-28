@@ -36,7 +36,7 @@ export default function EmailSignIn() {
   return (
     <SheetLayout footer={<Button title="Sign in" onPress={submit} loading={busy} disabled={!ready} />}>
       <Txt variant="callout" tone="secondary">
-        For accounts set up by the L8R team. Everyone else can continue with Apple or Google.
+        For accounts set up by the Relive team. Everyone else can continue with Apple or Google.
       </Txt>
       <View style={{ gap: space.md }}>
         <TextInput

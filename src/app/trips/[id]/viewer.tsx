@@ -63,7 +63,7 @@ export default function Viewer() {
   async function download(item: MediaItem): Promise<File> {
     if (!item.url) throw new Error('unavailable');
     const ext = item.kind === 'photo' ? 'jpg' : /\.mp4(\?|$)/.test(item.url) ? 'mp4' : 'mov';
-    const target = new File(Paths.cache, `l8r-${item.id}.${ext}`);
+    const target = new File(Paths.cache, `relive-${item.id}.${ext}`);
     if (target.exists) target.delete();
     try {
       return await File.downloadFileAsync(item.url, target);
@@ -80,7 +80,7 @@ export default function Viewer() {
     try {
       const permission = await MediaLibrary.requestPermissionsAsync(true);
       if (!permission.granted) {
-        Alert.alert('Allow adding to Photos', 'L8R needs permission to add this memory to your photo library.', [
+        Alert.alert('Allow adding to Photos', 'Relive needs permission to add this memory to your photo library.', [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Open Settings', onPress: () => Linking.openSettings() },
         ]);

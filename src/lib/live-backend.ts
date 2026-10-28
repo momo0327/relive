@@ -149,6 +149,11 @@ export const liveBackend: Backend = {
     return id;
   },
 
+  async updateTrip(tripId, { name, coverUri }) {
+    if (name !== undefined) await rpc('rename_trip', { p_trip: tripId, p_name: name });
+    if (coverUri) await uploadCover(tripId, coverUri);
+  },
+
   createInvite: (tripId) => rpc<string>('create_invite', { p_trip: tripId }),
   revokeInvites: (tripId) => rpc('revoke_trip_invites', { p_trip: tripId }),
 

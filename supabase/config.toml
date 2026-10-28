@@ -1,10 +1,10 @@
 # Minimal local config for `npx supabase start`. Hosted projects are configured
 # in the dashboard; see docs/SETUP.md.
-project_id = "l8r"
+project_id = "relive"
 
 [auth]
-site_url = "l8r://"
-additional_redirect_urls = ["l8r://auth-callback", "exp://**"]
+site_url = "relive://"
+additional_redirect_urls = ["relive://auth-callback", "exp://**"]
 
 [auth.external.apple]
 enabled = true

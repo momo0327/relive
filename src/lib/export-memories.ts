@@ -9,7 +9,7 @@ export type ExportResult = { saved: number; failed: number };
 async function downloadToCache(item: MediaItem): Promise<File> {
   if (!item.url) throw new Error('unavailable');
   const ext = item.kind === 'photo' ? 'jpg' : /\.mp4(\?|$)/.test(item.url) ? 'mp4' : 'mov';
-  const target = new File(Paths.cache, `l8r-export-${item.id}.${ext}`);
+  const target = new File(Paths.cache, `relive-export-${item.id}.${ext}`);
   if (target.exists) target.delete();
   return File.downloadFileAsync(item.url, target);
 }

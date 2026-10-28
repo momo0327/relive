@@ -1,4 +1,4 @@
-# L8R security model
+# Relive security model
 
 The delayed reveal is a **server-enforced security property**. The app's countdown and hidden buttons are presentation only.
 

@@ -1,4 +1,4 @@
-// Offline security test for the L8R migration.
+// Offline security test for the Relive migration.
 //
 // Runs the real migration inside PGlite (Postgres compiled to WASM) with
 // minimal stand-ins for Supabase's `auth` and `storage` schemas, then checks
@@ -91,7 +91,7 @@ let token;
 const photoId = '11111111-1111-4111-8111-111111111111';
 let photoPath;
 
-console.log('L8R policy tests');
+console.log('Relive policy tests');
 
 await test('creator becomes owner of a new trip', async () => {
   const { rows } = await as('alice', `select public.create_trip('Lisbon', $1, $2) as id`, [iso(-day), iso(3 * day)]);
@@ -314,6 +314,17 @@ await test('avatars: own path only, readable by self and trip-mates, colour vali
   await as('bob', `select public.set_avatar(null)`);
   const queued = await db.query(`select 1 from public.storage_deletions where bucket_id = 'avatars' and object_name = $1`, [own]);
   assert.equal(queued.rows.length, 1, 'removed photo queued for purge');
+});
+
+await test('only the organizer can rename a trip, with the same name rules', async () => {
+  const t = (await as('bob', `select public.create_trip('Old name', $1, $2) as id`, [iso(0), iso(day)])).rows[0].id;
+  const tok = (await as('bob', `select public.create_invite($1) as t`, [t])).rows[0].t;
+  await as('carol', `select public.accept_invite($1)`, [tok]);
+  await rejects(as('carol', `select public.rename_trip($1, 'Hijacked')`, [t]), /forbidden/);
+  await rejects(as('bob', `select public.rename_trip($1, '   ')`, [t]), /invalid_name/);
+  await as('bob', `select public.rename_trip($1, '  New name  ')`, [t]);
+  const name = (await as('carol', `select public.get_trip($1) as t`, [t])).rows[0].t.name;
+  assert.equal(name, 'New name');
 });
 
 await test('anon role cannot call RPCs', async () => {

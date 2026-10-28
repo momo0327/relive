@@ -1,4 +1,4 @@
-# L8R — Capture now. Relive later.
+# Relive — Capture now. Relive later.
 
 A private, invitation-only travel memory app. Friends create a trip, invite each other, and add photos and short videos during the trip. **Nobody, the uploader included, can view or download anything until the trip's server-verified reveal time.** Then everything unlocks together in a shared gallery.
 

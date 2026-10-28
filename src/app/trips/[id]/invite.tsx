@@ -37,7 +37,7 @@ export default function Invite() {
 
   if (!data) return error ? <ErrorState message={error} onRetry={reload} /> : <LoadingState label="Creating invite link" />;
   const { trip, link } = data;
-  const message = `Join “${trip.name}” on L8R. Everything we capture stays hidden until the trip ends. ${link}`;
+  const message = `Join “${trip.name}” on Relive. Everything we capture stays hidden until the trip ends. ${link}`;
   const displayLink = link.replace(/^[a-z]+:\/\//, '');
 
   async function copy() {

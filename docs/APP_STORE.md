@@ -25,7 +25,7 @@ Status key: ✅ done in code · 🔧 needs your account, content or decision · 
 ## Current platform requirements (checked October 2026)
 
 - **Build toolchain:** since 28 April 2026, uploads must be built with **Xcode 26+ and the iOS 26 SDK** ([Apple](https://developer.apple.com/news/upcoming-requirements/)). Expo SDK 58 on EAS's default image meets this. Re-check the page before each release.
-- **Age rating:** the questionnaire with 13+/16+/18+ tiers must be answered for every new submission. L8R has no public feed, but it does let users share unmoderated photos and videos, so answer the user-generated content questions honestly. Expect at least 13+.
+- **Age rating:** the questionnaire with 13+/16+/18+ tiers must be answered for every new submission. Relive has no public feed, but it does let users share unmoderated photos and videos, so answer the user-generated content questions honestly. Expect at least 13+.
 - **Demo access (2.1):** apps with login must give App Review a working **demo account**. A built-in demo mode is only allowed *with prior approval from Apple*, so "Look around first" alone isn't enough (see below).
 
 ## App Review access
@@ -55,9 +55,9 @@ Fill in the current questionnaire honestly. Users can share unmoderated photos a
 ## Metadata and assets
 
 - 🔧 App name, subtitle ("Capture now. Relive later."), description, keywords, support URL, marketing URL, privacy policy URL.
-- 🔧 **App icon:** replace `assets/expo.icon` and `assets/images/icon.png` with L8R artwork. The template icon is still in place.
+- 🔧 **App icon:** replace `assets/expo.icon` and `assets/images/icon.png` with Relive artwork. The template icon is still in place.
 - 🔧 **iPad:** `supportsTablet` is true, so App Review tests on iPad and iPad screenshots are required. Either test the layouts on an iPad (and iPhone Duo) simulator or set `supportsTablet: false` for v1.
-- 🔧 **App name:** check that "L8R" is available in App Store Connect and keep a fallback ready (e.g. "L8R: Trip Memories").
+- 🔧 **App name:** check that "Relive" is available in App Store Connect and keep a fallback ready (e.g. "Relive: Trip Memories").
 - 🔧 **Screenshots:** capture on the device sizes App Store Connect currently requires (check the [screenshot specifications](https://developer.apple.com/help/app-store-connect/reference/app-information/screenshot-specifications)). Use preview mode or the demo trip, never real users' media. iPad screenshots are needed because `supportsTablet` is true.
 - 🔧 Splash image: `assets/images/splash-icon.png` is still the template's.
 - 🔧 Google sign-in button: follow Google's branding guidelines (official "G" mark) before release, or turn it off.

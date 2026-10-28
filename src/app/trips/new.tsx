@@ -1,16 +1,16 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Image } from 'expo-image';
-import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Alert, Platform, StyleSheet, View } from 'react-native';
 
 import { friendlyError } from '@/lib/errors';
 import { formatRevealMoment, plural } from '@/lib/format';
+import { ensureNotificationPermission } from '@/lib/notifications';
 import { useSession } from '@/lib/session';
 import { Button, Card, Icon, Row, Txt } from '@/ui/primitives';
+import { PosterEditor, type PosterCover } from '@/ui/poster-editor';
 import { SheetLayout } from '@/ui/sheet-layout';
-import { radius, space, useTheme } from '@/ui/theme';
+import { space, useTheme } from '@/ui/theme';
 
 const DAY = 24 * 60 * 60 * 1000;
 const MAX_DAYS = 62;
@@ -31,7 +31,9 @@ export default function NewTrip() {
   const [name, setName] = useState('');
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(addDays(today, 3));
-  const [cover, setCover] = useState<string | null>(null);
+  const [cover, setCover] = useState<PosterCover>(null);
+  // Stable gradient seed, so the preview's colours don't change while typing.
+  const [seed] = useState(() => `new-${Date.now()}`);
   const [saving, setSaving] = useState(false);
 
   // The reveal is midnight (device time zone) at the end of the last day.
@@ -46,21 +48,12 @@ export default function NewTrip() {
           ? `Trips can last up to ${MAX_DAYS} days.`
           : null;
 
-  async function pickCover() {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [16, 10],
-      quality: 0.9,
-    });
-    if (!result.canceled) setCover(result.assets[0].uri);
-  }
-
   async function create() {
     if (problem) return;
     setSaving(true);
     try {
-      const id = await backend.createTrip({ name: name.trim(), startsAt: start, unlocksAt, coverUri: cover });
+      const id = await backend.createTrip({ name: name.trim(), startsAt: start, unlocksAt, coverUri: cover?.uri ?? null });
+      ensureNotificationPermission().catch(() => undefined);
       router.dismissTo(`/trips/${id}`);
       router.push(`/trips/${id}/invite`);
     } catch (error) {
@@ -71,44 +64,7 @@ export default function NewTrip() {
 
   return (
     <SheetLayout footer={<Button title="Create trip" onPress={create} loading={saving} disabled={!!problem} />}>
-        <Pressable
-          onPress={pickCover}
-          accessibilityRole="button"
-          accessibilityLabel={cover ? 'Change cover photo' : 'Add a cover photo, optional'}
-          style={[styles.cover, { backgroundColor: c.surfaceRaised, borderColor: c.border }]}>
-          {cover ? (
-            <Image source={{ uri: cover }} style={StyleSheet.absoluteFill} contentFit="cover" />
-          ) : (
-            <View style={{ alignItems: 'center', gap: space.sm }}>
-              <Icon name="photo.badge.plus" size={28} color={c.textSecondary} />
-              <Txt variant="subhead" tone="secondary">
-                Add a cover photo (optional)
-              </Txt>
-            </View>
-          )}
-        </Pressable>
-        {cover ? (
-          <Txt variant="footnote" tone="tertiary">
-            Members see the cover right away. It isn’t one of the trip’s hidden memories.
-          </Txt>
-        ) : null}
-
-        <View style={{ gap: space.sm }}>
-          <Txt variant="footnote" tone="secondary" nativeID="trip-name-label">
-            TRIP NAME
-          </Txt>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="Summer in Lisbon"
-            placeholderTextColor={c.textTertiary}
-            maxLength={80}
-            autoFocus
-            returnKeyType="done"
-            accessibilityLabelledBy="trip-name-label"
-            style={[styles.input, { color: c.text, backgroundColor: c.surfaceRaised }]}
-          />
-        </View>
+        <PosterEditor name={name} onNameChange={setName} cover={cover} onCoverChange={setCover} seed={seed} />
 
         <Card style={{ gap: space.md, backgroundColor: c.surfaceRaised }}>
           <DateRow label="Starts" value={start} minimumDate={addDays(today, -30)} onChange={(d) => {
@@ -154,15 +110,3 @@ function DateRow({ label, value, minimumDate, onChange }: { label: string; value
     </Row>
   );
 }
-
-const styles = StyleSheet.create({
-  cover: {
-    aspectRatio: 16 / 10,
-    borderRadius: radius.lg,
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  input: { fontSize: 20, fontWeight: '600', borderRadius: radius.md, paddingHorizontal: space.lg, paddingVertical: space.md, minHeight: 52 },
-});

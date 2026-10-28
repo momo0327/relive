@@ -1,4 +1,4 @@
-# L8R website
+# Relive website
 
 Static pages for the App Store listing and invite links. Host on any static host
 (Netlify, Vercel, Cloudflare Pages, GitHub Pages) at your domain.

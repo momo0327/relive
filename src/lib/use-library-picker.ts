@@ -51,7 +51,7 @@ export function useLibraryPicker(tripId: string) {
       if (skipped.length) Alert.alert(`${plural(skipped.length, 'item')} skipped`, [...new Set(skipped)].join('\n'));
       return prepared.length;
     } catch {
-      Alert.alert('Couldn’t open your library', 'Check Photos access for L8R in Settings.', [
+      Alert.alert('Couldn’t open your library', 'Check Photos access for Relive in Settings.', [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Open Settings', onPress: () => Linking.openSettings() },
       ]);

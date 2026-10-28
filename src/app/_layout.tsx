@@ -1,10 +1,13 @@
+import { Inter_600SemiBold } from '@expo-google-fonts/inter';
 import { ProtestStrike_400Regular, useFonts } from '@expo-google-fonts/protest-strike';
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
 import { applyStoredAppearance } from '@/lib/appearance';
+import { tripIdFromResponse } from '@/lib/notifications';
 import { SessionProvider, useSession } from '@/lib/session';
 import { UploadQueueProvider } from '@/lib/uploads';
 import { useTheme } from '@/ui/theme';
@@ -22,11 +25,25 @@ export default function RootLayout() {
   );
 }
 
+/** Tapping a reminder or reveal notification opens that trip. */
+function useNotificationNavigation(enabled: boolean) {
+  const router = useRouter();
+  const last = Notifications.useLastNotificationResponse();
+  useEffect(() => {
+    const tripId = tripIdFromResponse(last);
+    if (!enabled || !tripId) return;
+    router.push(`/trips/${tripId}`);
+    Notifications.clearLastNotificationResponse();
+  }, [enabled, last, router]);
+}
+
 function AppStack() {
   const { ready, signedIn, onboarded } = useSession();
+  useNotificationNavigation(ready && signedIn && onboarded);
   const c = useTheme();
-  // Trip card titles use Protest Strike (SIL OFL); a load failure falls back to the system font.
-  const [fontsLoaded, fontError] = useFonts({ ProtestStrike_400Regular });
+  // Trip card titles use Protest Strike, the header wordmark Inter (both SIL OFL);
+  // a load failure falls back to the system font.
+  const [fontsLoaded, fontError] = useFonts({ ProtestStrike_400Regular, Inter_600SemiBold });
   const fontsReady = fontsLoaded || !!fontError;
 
   useEffect(() => {
@@ -75,6 +92,7 @@ function AppStack() {
           <Stack.Screen name="trips/new" options={{ ...sheet, title: 'New Trip', headerShown: true, sheetAllowedDetents: [1] }} />
           <Stack.Screen name="trips/[id]/index" options={{ title: '', headerTransparent: true }} />
           <Stack.Screen name="trips/[id]/invite" options={{ ...sheet, headerShown: false, sheetAllowedDetents: 'fitToContents' }} />
+          <Stack.Screen name="trips/[id]/edit" options={{ ...sheet, title: 'Edit Trip', sheetAllowedDetents: [1] }} />
           <Stack.Screen name="trips/[id]/options" options={{ ...sheet, title: 'Trip Options', sheetAllowedDetents: [0.7, 1] }} />
           <Stack.Screen name="trips/[id]/saved" options={{ ...sheet, headerShown: false, sheetAllowedDetents: 'fitToContents' }} />
           <Stack.Screen name="trips/[id]/capture" options={{ presentation: 'fullScreenModal', headerShown: false, animation: 'fade' }} />
