@@ -1,0 +1,23 @@
+# Minimal local config for `npx supabase start`. Hosted projects are configured
+# in the dashboard; see docs/SETUP.md.
+project_id = "relive"
+
+[auth]
+site_url = "relive://"
+additional_redirect_urls = ["relive://auth-callback", "exp://**"]
+
+[auth.external.apple]
+enabled = true
+client_id = "env(APPLE_CLIENT_IDS)"
+secret = ""
+
+[auth.external.google]
+enabled = true
+client_id = "env(GOOGLE_WEB_CLIENT_ID)"
+secret = "env(GOOGLE_WEB_CLIENT_SECRET)"
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.purge-media]
+verify_jwt = false

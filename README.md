@@ -1,56 +1,48 @@
-# Welcome to your Expo app 👋
+# Relive — Capture now. Relive later.
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A private, invitation-only travel memory app. Friends create a trip, invite each other, and add photos and short videos during the trip. **Nobody, the uploader included, can view or download anything until the trip's server-verified reveal time.** Then everything unlocks together in a shared gallery.
 
-## Get started
+Built with Expo SDK 58 (React Native 0.88, Expo Router), TypeScript, and Supabase (Auth, Postgres + RLS, private Storage, Edge Functions).
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## Quick start
 
 ```bash
-npm run reset-project
+npm install
+npx expo run:ios                 # dev build in the iOS Simulator; preview mode works with no backend
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+Connect a real backend with [docs/SETUP.md](docs/SETUP.md).
 
-### Other setup steps
+## Project layout
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+```
+src/app/                 Routes (Expo Router)
+  welcome, onboarding    Sign in (Apple / Google / preview), 3-step intro
+  index                  My Trips (active / upcoming / revealed)
+  trips/new              Create trip (sheet)
+  trips/[id]/index       Locked trip home or revealed gallery, decided by server status
+  trips/[id]/capture     Camera (photo + ≤30 s video)
+  trips/[id]/invite      Invite link: copy + share sheet
+  trips/[id]/options     Members, block/report/remove, leave/delete
+  trips/[id]/saved       Upload-complete confirmation
+  trips/[id]/viewer      Fullscreen viewer: save, share, report, delete
+  join/[token]           Invite deep link → sign in → confirm → join
+  account                Name, privacy, support, sign out, delete account
+src/lib/                 Data access and device logic (no UI)
+  backend.ts             Backend interface; live-backend.ts (Supabase) and preview-backend.ts (on-device sample)
+  uploads.tsx            Persistent upload queue: progress, retry, offline, background URLSession
+  media-prep.ts          Photo re-encode (strips EXIF/GPS), video limits
+  session.tsx            Auth, preview mode, onboarding, pending invite, account deletion
+src/screens/             Larger non-route views (locked trip, gallery)
+src/ui/                  Theme, layout/size classes, accessibility prefs, primitives, Liquid Glass wrapper
+supabase/migrations/     Schema, RLS, Storage policies, RPCs
+supabase/functions/      delete-account, purge-media (Deno)
+supabase/tests/          Offline policy tests (PGlite)
+docs/                    SETUP, SECURITY, APP_STORE checklist, privacy policy draft
+```
 
-## Learn more
+## Checks
 
-To learn more about developing your project with Expo, look at the following resources:
-
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npm run check    # typecheck + lint + policy tests
+```
