@@ -42,15 +42,7 @@ export default function MyTrips() {
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button icon="link" accessibilityLabel="Join a trip with a link" onPress={() => router.push('/join-link')} />
       </Stack.Toolbar>
-      <Stack.Screen
-        options={{
-          headerTitle: () => (
-            <Txt maxFontSizeMultiplier={1.3} accessibilityRole="header" style={styles.wordmark}>
-              relive
-            </Txt>
-          ),
-        }}
-      />
+
     </>
   );
 
@@ -143,7 +135,6 @@ function PageHeading({ title }: { title: string }) {
 }
 
 const styles = StyleSheet.create({
-  wordmark: { fontFamily: 'Inter_600SemiBold', fontWeight: '600', fontSize: 21, letterSpacing: -0.3 },
   heading: { alignSelf: 'center', alignItems: 'center', marginBottom: space.sm },
   underline: { alignSelf: 'stretch', alignItems: 'center', marginTop: 2 },
   stroke: { height: 2, borderRadius: 1 },

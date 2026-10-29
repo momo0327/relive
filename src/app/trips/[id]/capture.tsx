@@ -122,7 +122,13 @@ export default function Capture() {
   if (shot) {
     return (
       <View style={{ flex: 1, backgroundColor: '#000' }}>
-        <CapturePreview tripId={tripId} shot={shot} onRetake={() => setShot(null)} onDone={() => router.back()} />
+        <CapturePreview
+          tripId={tripId}
+          shot={shot}
+          onRetake={() => setShot(null)}
+          // Back to the trip page, which shows the "Memory saved" sheet.
+          onDone={() => router.back()}
+        />
       </View>
     );
   }
@@ -189,6 +195,8 @@ export default function Capture() {
         ref={camera}
         style={StyleSheet.absoluteFill}
         facing={facing}
+        // Save front-camera shots the way the viewfinder showed them (like a mirror).
+        mirror={facing === 'front'}
         mode={mode}
         flash={flash}
         mute={!!micDenied}

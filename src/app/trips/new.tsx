@@ -63,7 +63,7 @@ export default function NewTrip() {
   }
 
   return (
-    <SheetLayout footer={<Button title="Create trip" onPress={create} loading={saving} disabled={!!problem} />}>
+    <SheetLayout bottom={<Button title="Create trip" onPress={create} loading={saving} disabled={!!problem} />}>
         <PosterEditor name={name} onNameChange={setName} cover={cover} onCoverChange={setCover} seed={seed} />
 
         <Card style={{ gap: space.md, backgroundColor: c.surfaceRaised }}>

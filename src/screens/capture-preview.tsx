@@ -1,5 +1,4 @@
 import { File } from 'expo-file-system';
-import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useRef, useState } from 'react';
@@ -8,7 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrepError, preparePhoto, prepareVideo } from '@/lib/media-prep';
 import { useTripUploads } from '@/lib/uploads';
-import { Button, Glass, Icon, IconButton, Row, Txt } from '@/ui/primitives';
+import { Button, Glass, IconButton, Row, Txt } from '@/ui/primitives';
 import { space } from '@/ui/theme';
 
 export type Shot =
@@ -32,23 +31,20 @@ export function CapturePreview({
   onDone: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const { items, enqueue, retry, clearDone } = useTripUploads(tripId);
+  const { items, enqueue, retry } = useTripUploads(tripId);
   const [mediaId, setMediaId] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const finished = useRef(false);
   const item = mediaId ? items.find((i) => i.id === mediaId) : undefined;
 
+  // Once the server confirms, close straight away; the trip page then shows
+  // the usual "Memory saved" sheet for the finished upload.
   useEffect(() => {
     if (item?.status !== 'done' || finished.current) return;
     finished.current = true;
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => undefined);
-    const timer = setTimeout(() => {
-      clearDone(tripId);
-      onDone();
-    }, 1300);
-    return () => clearTimeout(timer);
-  }, [item?.status, clearDone, onDone, tripId]);
+    onDone();
+  }, [item?.status, onDone]);
 
   function retake() {
     try {
@@ -97,15 +93,7 @@ export function CapturePreview({
       )}
 
       {/* Upload progress drawn over the shot */}
-      {item ? (
-        <View style={[StyleSheet.absoluteFill, styles.dim]} pointerEvents="none">
-          {item.status === 'done' ? (
-            <View style={styles.doneBadge}>
-              <Icon name="checkmark" size={34} color="#0E0F10" weight="bold" />
-            </View>
-          ) : null}
-        </View>
-      ) : null}
+      {item ? <View style={[StyleSheet.absoluteFill, styles.dim]} pointerEvents="none" /> : null}
 
       {!item ? (
         <View style={[styles.top, { paddingTop: insets.top + space.sm }]} pointerEvents="box-none">
@@ -168,7 +156,6 @@ const styles = StyleSheet.create({
   top: { position: 'absolute', top: 0, left: space.lg },
   bottom: { position: 'absolute', left: space.lg, right: space.lg, bottom: 0, alignItems: 'stretch' },
   dim: { backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
-  doneBadge: { width: 72, height: 72, borderRadius: 36, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   statusPill: { borderRadius: 24, paddingHorizontal: space.xl, paddingVertical: space.lg },
   track: { width: 220, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3, backgroundColor: '#fff' },
