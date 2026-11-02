@@ -1,10 +1,10 @@
 import { GlassView, isGlassEffectAPIAvailable } from 'expo-glass-effect';
-import * as Haptics from 'expo-haptics';
 import type { SymbolViewProps } from 'expo-symbols';
 import { Platform, Pressable, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useA11yPrefs } from './a11y';
+import { haptic } from './haptics';
 import { useLayout } from './layout';
 import { Icon } from './primitives';
 import { space, useTheme } from './theme';
@@ -44,7 +44,7 @@ export function FloatingButton({
       accessibilityLabel={label}
       accessibilityHint={hint}
       onPress={() => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => undefined);
+        haptic.impact();
         onPress();
       }}
       style={({ pressed }) => [

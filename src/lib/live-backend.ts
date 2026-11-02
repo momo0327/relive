@@ -14,6 +14,7 @@ type TripRow = {
   name: string;
   cover_path: string | null;
   cover_tone?: 'light' | 'dark';
+  created_at?: string;
   starts_at: string;
   unlocks_at: string;
   status: TripStatus;
@@ -55,6 +56,7 @@ function toSummary(row: TripRow, covers: Map<string, string>): TripSummary {
     memberCount: row.member_count ?? 0,
     memoryCount: Number(row.memory_count),
     myMemoryCount: Number(row.my_memory_count),
+    createdAt: row.created_at ? new Date(row.created_at) : null,
   };
 }
 

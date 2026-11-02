@@ -15,6 +15,7 @@ import { MembersRow } from '@/ui/members-row';
 import { Button, Icon, Row, Txt } from '@/ui/primitives';
 import { ErrorState, LoadingState } from '@/ui/states';
 import { radius, space, useTheme } from '@/ui/theme';
+import { withTap } from '@/ui/haptics';
 
 /** Invite Friends sheet: one link, one big share button, and "Make a new link" for the organizer. */
 export default function Invite() {
@@ -86,7 +87,7 @@ export default function Invite() {
         <MembersRow members={trip.members} />
 
         <Pressable
-          onPress={copy}
+          onPress={withTap(copy)}
           accessibilityRole="button"
           accessibilityLabel="Invite link"
           accessibilityHint="Copies the link"
@@ -122,7 +123,7 @@ export default function Invite() {
             </Txt>
           </Row>
           {trip.isOwner ? (
-            <Pressable onPress={makeNewLink} disabled={renewing} accessibilityRole="button" hitSlop={8}>
+            <Pressable onPress={withTap(makeNewLink)} disabled={renewing} accessibilityRole="button" hitSlop={8}>
               <Txt variant="subhead" tone="accent" style={{ fontWeight: '600', marginLeft: 23 }}>
                 {renewing ? 'Making a new link…' : 'Make a new link'}
               </Txt>

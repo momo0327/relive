@@ -1,14 +1,12 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef } from 'react';
-import { View } from 'react-native';
 
 import { useSession } from '@/lib/session';
 import { useLoad } from '@/lib/use-load';
 import { GalleryView } from '@/screens/gallery';
 import { LockedTripView } from '@/screens/locked-trip';
-import { formatTripDates } from '@/lib/format';
-import { Txt } from '@/ui/primitives';
 import { ErrorState, LoadingState } from '@/ui/states';
+import { withTap } from '@/ui/haptics';
 
 export default function TripScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -42,18 +40,8 @@ export default function TripScreen() {
     <Stack.Screen
       options={{
         title: trip?.name ?? '',
-        headerTitle: trip
-          ? () => (
-              <View style={{ alignItems: 'center' }} accessible accessibilityRole="header">
-                <Txt variant="headline" numberOfLines={1} maxFontSizeMultiplier={1.4}>
-                  {trip.name}
-                </Txt>
-                <Txt variant="caption" tone="secondary" numberOfLines={1} maxFontSizeMultiplier={1.4}>
-                  {formatTripDates(trip.startsAt, trip.unlocksAt)}
-                </Txt>
-              </View>
-            )
-          : undefined,
+        // The name and dates live in the cover banner.
+        headerTitle: '',
         headerRight: undefined,
       }}
     />
@@ -76,7 +64,7 @@ export default function TripScreen() {
         <Stack.Toolbar.Button
           icon="ellipsis"
           accessibilityLabel="Trip options"
-          onPress={() => router.push(`/trips/${id}/options`)}
+          onPress={withTap(() => router.push(`/trips/${id}/options`))}
         />
       </Stack.Toolbar>
       {trip.status === 'revealed' ? (

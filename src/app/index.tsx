@@ -1,4 +1,4 @@
-import { Stack, useRouter } from 'expo-router';
+import { Link, Stack, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -9,10 +9,10 @@ import type { TripSummary } from '@/lib/types';
 import { useLoad } from '@/lib/use-load';
 import { useLayout } from '@/ui/layout';
 import { FloatingButton } from '@/ui/floating-button';
-import { Txt } from '@/ui/primitives';
 import { ErrorState, LoadingState, MessageState } from '@/ui/states';
-import { space, useTheme } from '@/ui/theme';
+import { radius, space } from '@/ui/theme';
 import { TripPoster } from '@/ui/trip-poster';
+import { haptic, withTap } from '@/ui/haptics';
 
 export default function MyTrips() {
   const router = useRouter();
@@ -37,10 +37,10 @@ export default function MyTrips() {
   const header = (
     <>
       <Stack.Toolbar placement="left">
-        <Stack.Toolbar.Button icon="person.crop.circle" accessibilityLabel="Settings" onPress={() => router.push('/account')} />
+        <Stack.Toolbar.Button icon="person.crop.circle" accessibilityLabel="Settings" onPress={withTap(() => router.push('/account'))} />
       </Stack.Toolbar>
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button icon="link" accessibilityLabel="Join a trip with a link" onPress={() => router.push('/join-link')} />
+        <Stack.Toolbar.Button icon="link" accessibilityLabel="Join a trip with a link" onPress={withTap(() => router.push('/join-link'))} />
       </Stack.Toolbar>
 
     </>
@@ -74,7 +74,6 @@ export default function MyTrips() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} />}
         contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: 120, alignItems: 'center' }}>
         <View style={{ width: contentWidth, gap: space.xl, paddingTop: space.md }}>
-          <PageHeading title="Memories" />
           {trips.length === 0 ? (
             <View style={{ minHeight: 420 }}>
               <MessageState
@@ -99,7 +98,6 @@ export default function MyTrips() {
 }
 
 function TripCard({ trip, width }: { trip: TripSummary; width: number }) {
-  const router = useRouter();
   const a11y = [
     trip.name,
     formatTripDates(trip.startsAt, trip.unlocksAt),
@@ -107,35 +105,29 @@ function TripCard({ trip, width }: { trip: TripSummary; width: number }) {
     plural(trip.memoryCount, 'memory', 'memories'),
   ].join(', ');
 
+  // iOS zoom transition: the card grows to fill the screen and settles into the
+  // trip page's banner (Link.AppleZoomTarget in TripHero).
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={a11y}
-      onPress={() => router.push(`/trips/${trip.id}`)}
-      style={({ pressed }) => ({ width, opacity: pressed ? 0.85 : 1 })}>
-      <TripPoster name={trip.name} coverUrl={trip.coverUrl} coverKey={trip.coverKey} tone={trip.coverTone} seed={trip.id} />
-    </Pressable>
-  );
-}
-
-/** Centred page heading with a sketched double underline, like a pen mark. */
-function PageHeading({ title }: { title: string }) {
-  const c = useTheme();
-  return (
-    <View style={styles.heading}>
-      <Txt variant="largeTitle" accessibilityRole="header" style={{ fontWeight: '600', letterSpacing: -0.3 }}>
-        {title}
-      </Txt>
-      <View style={styles.underline} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-        <View style={[styles.stroke, { backgroundColor: c.text, width: '108%', transform: [{ rotate: '-1.2deg' }] }]} />
-        <View style={[styles.stroke, { backgroundColor: c.text, width: '96%', marginTop: 3, opacity: 0.85, transform: [{ rotate: '0.6deg' }, { translateX: 4 }] }]} />
-      </View>
-    </View>
+    <Link href={`/trips/${trip.id}`} asChild onPress={() => haptic.tap()}>
+      <Pressable accessibilityRole="button" accessibilityLabel={a11y} style={{ width }}>
+        <Link.AppleZoom>
+          <View style={styles.zoomSource}>
+            <TripPoster
+              name={trip.name}
+              coverUrl={trip.coverUrl}
+              coverKey={trip.coverKey}
+              tone={trip.coverTone}
+              seed={trip.id}
+              createdAt={trip.createdAt}
+            />
+          </View>
+        </Link.AppleZoom>
+      </Pressable>
+    </Link>
   );
 }
 
 const styles = StyleSheet.create({
-  heading: { alignSelf: 'center', alignItems: 'center', marginBottom: space.sm },
-  underline: { alignSelf: 'stretch', alignItems: 'center', marginTop: 2 },
-  stroke: { height: 2, borderRadius: 1 },
+  // Matches the poster's rounded corners so the zoom starts from the card shape.
+  zoomSource: { borderRadius: radius.lg, overflow: 'hidden' },
 });

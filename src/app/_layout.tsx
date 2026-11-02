@@ -1,3 +1,4 @@
+import { Poppins_500Medium } from '@expo-google-fonts/poppins';
 import { ProtestStrike_400Regular, useFonts } from '@expo-google-fonts/protest-strike';
 import * as Notifications from 'expo-notifications';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter } from 'expo-router';
@@ -40,8 +41,9 @@ function AppStack() {
   const { ready, signedIn, onboarded } = useSession();
   useNotificationNavigation(ready && signedIn && onboarded);
   const c = useTheme();
-  // Trip card titles use Protest Strike (SIL OFL); a load failure falls back to the system font.
-  const [fontsLoaded, fontError] = useFonts({ ProtestStrike_400Regular });
+  // Trip cards use Protest Strike (title) and Poppins Medium (date), both SIL OFL;
+  // a load failure falls back to the system font.
+  const [fontsLoaded, fontError] = useFonts({ ProtestStrike_400Regular, Poppins_500Medium });
   const fontsReady = fontsLoaded || !!fontError;
 
   useEffect(() => {

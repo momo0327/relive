@@ -17,10 +17,11 @@ import { useLoad } from '@/lib/use-load';
 import { setViewerItems } from '@/lib/viewer-cache';
 import { useA11yPrefs } from '@/ui/a11y';
 import { useLayout } from '@/ui/layout';
-import { MembersRow } from '@/ui/members-row';
+import { HERO_OVERLAP, TripHero } from '@/ui/trip-hero';
 import { Icon, Row, Txt } from '@/ui/primitives';
 import { ErrorState, LoadingState, MessageState } from '@/ui/states';
 import { radius, space, useTheme } from '@/ui/theme';
+import { haptic, withTap } from '@/ui/haptics';
 
 type Filter = 'all' | 'photo' | 'video';
 const GAP = 10;
@@ -45,6 +46,7 @@ function masonry(items: MediaItem[], columns: number) {
 
 export function GalleryView({ trip }: { trip: TripDetail }) {
   const router = useRouter();
+  const c = useTheme();
   const { backend } = useSession();
   const { gutter, galleryColumns, width, contentWidth, regular } = useLayout();
   const [filter, setFilter] = useState<Filter>('all');
@@ -95,7 +97,8 @@ export function GalleryView({ trip }: { trip: TripDetail }) {
   return (
     <View style={{ flex: 1 }}>
       <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
+        // The banner runs under the status bar and header.
+        contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -108,10 +111,10 @@ export function GalleryView({ trip }: { trip: TripDetail }) {
           />
         }
         contentContainerStyle={{ alignItems: 'center', paddingBottom: 120 }}>
-        <View style={{ width: gridWidth, gap: space.lg, paddingTop: space.sm }}>
-          <View style={{ alignItems: 'center' }}>
-            <MembersRow members={trip.members} />
-          </View>
+        <TripHero trip={trip} />
+        {/* Rounded panel that slides over the bottom of the banner. */}
+        <View style={[styles.panel, { width, marginTop: -HERO_OVERLAP, backgroundColor: c.background }]}>
+        <View style={{ width: gridWidth, gap: space.lg, alignSelf: 'center' }}>
           {counts.all > 0 ? <FilterBar value={filter} onChange={setFilter} /> : null}
 
           {items.length === 0 ? (
@@ -132,13 +135,20 @@ export function GalleryView({ trip }: { trip: TripDetail }) {
                       item={item}
                       width={columnWidth}
                       selected={selected ? selected.has(item.id) : undefined}
-                      onPress={() => (selected ? toggle(item.id) : open(index))}
+                      onPress={() => {
+                        if (selected) toggle(item.id);
+                        else {
+                          haptic.tap();
+                          open(index);
+                        }
+                      }}
                     />
                   ))}
                 </View>
               ))}
             </View>
           )}
+        </View>
         </View>
       </ScrollView>
 
@@ -222,14 +232,14 @@ function ExportBar({
     content = (
       <Row style={{ justifyContent: 'space-between', paddingHorizontal: gutter }}>
         <Row gap={space.sm}>
-          <Pressable onPress={onCancel} accessibilityRole="button" accessibilityLabel="Cancel selection" style={press}>
+          <Pressable onPress={withTap(onCancel)} accessibilityRole="button" accessibilityLabel="Cancel selection" style={press}>
             <GlassPill>
               <View style={styles.exportRound}>
                 <Icon name="xmark" size={18} color={dark} weight="semibold" />
               </View>
             </GlassPill>
           </Pressable>
-          <Pressable onPress={onToggleAll} accessibilityRole="button" style={press}>
+          <Pressable onPress={withTap(onToggleAll)} accessibilityRole="button" style={press}>
             <GlassPill>
               <Row style={styles.exportCompact}>
                 <Txt variant="headline" style={{ color: dark }}>
@@ -240,7 +250,7 @@ function ExportBar({
           </Pressable>
         </Row>
         <Pressable
-          onPress={onSave}
+          onPress={withTap(onSave)}
           disabled={selectedCount === 0}
           accessibilityRole="button"
           accessibilityLabel={selectedCount ? `Save ${plural(selectedCount, 'memory', 'memories')} to Photos` : 'Save to Photos'}
@@ -255,7 +265,7 @@ function ExportBar({
     );
   } else {
     content = (
-      <Pressable onPress={onExport} accessibilityRole="button" accessibilityLabel="Export memories" style={[press({ pressed: false }), { alignSelf: 'center' }]}>
+      <Pressable onPress={withTap(onExport)} accessibilityRole="button" accessibilityLabel="Export memories" style={[press({ pressed: false }), { alignSelf: 'center' }]}>
         {({ pressed }) => (
           <View style={press({ pressed })}>
             <GlassPill>
@@ -291,7 +301,10 @@ function FilterBar({ value, onChange }: { value: Filter; onChange: (f: Filter) =
     <SegmentedControl
       values={['All', 'Photos', 'Videos']}
       selectedIndex={filters.indexOf(value)}
-      onChange={(e) => onChange(filters[e.nativeEvent.selectedSegmentIndex] ?? 'all')}
+      onChange={(e) => {
+        haptic.select();
+        onChange(filters[e.nativeEvent.selectedSegmentIndex] ?? 'all');
+      }}
       appearance={c.scheme}
       accessibilityLabel="Filter memories"
     />
@@ -375,6 +388,7 @@ function Tile({
 }
 
 const styles = StyleSheet.create({
+  panel: { borderTopLeftRadius: HERO_OVERLAP, borderTopRightRadius: HERO_OVERLAP, paddingTop: space.lg },
   check: {
     position: 'absolute',
     top: 8,

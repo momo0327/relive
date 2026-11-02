@@ -1,4 +1,7 @@
+import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+
+import { formatCreatedMonth } from '@/lib/format';
 
 import { Txt } from './primitives';
 import { space } from './theme';
@@ -6,8 +9,7 @@ import { Cover } from './trip-visuals';
 
 /**
  * The trip "poster": cover photo (or gradient) with the trip name in large
- * Protest Strike capitals near the top, black on bright covers and white on
- * dark ones. Used on the home page and as the live preview when creating or
+ * Protest Strike capitals near the top, over a soft dark fade on photo covers. Used on the home page and as the live preview when creating or
  * editing a trip, so all three always match.
  */
 export function TripPoster({
@@ -16,8 +18,11 @@ export function TripPoster({
   coverKey,
   tone,
   seed,
+  createdAt,
   style,
 }: {
+  /** Shows "NOVEMBER" / "NOVEMBER 2025" under the title. */
+  createdAt?: Date | null;
   name: string;
   coverUrl: string | null;
   coverKey: string | null;
@@ -25,16 +30,32 @@ export function TripPoster({
   seed: string;
   style?: StyleProp<ViewStyle>;
 }) {
+  // White over the darkened photo; on plain gradients, follow the tone.
+  const titleColor = coverUrl || tone !== 'light' ? '#FFFFFF' : '#0E0F10';
   return (
     <Cover uri={coverUrl} cacheKey={coverKey} seed={seed} scrim={false} style={[{ aspectRatio: 4 / 5 }, style]}>
+      {coverUrl ? (
+        // Soft darkening behind the title so it reads on any photo.
+        <LinearGradient
+          colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0.28)', 'rgba(0,0,0,0)']}
+          locations={[0, 0.28, 0.55]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+      ) : null}
       <View style={[StyleSheet.absoluteFill, styles.titleWrap]} pointerEvents="none">
         <Txt
           variant="largeTitle"
           numberOfLines={3}
           maxFontSizeMultiplier={1.4}
-          style={[styles.title, { color: tone === 'light' ? '#0E0F10' : '#FFFFFF' }]}>
+          style={[styles.title, { color: titleColor }]}>
           {name.toLocaleUpperCase()}
         </Txt>
+        {createdAt ? (
+          <Txt maxFontSizeMultiplier={1.3} style={[styles.date, { color: titleColor }]}>
+            {formatCreatedMonth(createdAt)}
+          </Txt>
+        ) : null}
       </View>
     </Cover>
   );
@@ -43,6 +64,7 @@ export function TripPoster({
 const styles = StyleSheet.create({
   // Upper part of the card, like a travel poster.
   titleWrap: { alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: space.xl, paddingTop: '11%' },
+  date: { fontFamily: 'Poppins_500Medium', fontSize: 15, letterSpacing: 2.5, marginTop: -2, textAlign: 'center' },
   title: {
     fontFamily: 'ProtestStrike_400Regular',
     fontWeight: 'normal',

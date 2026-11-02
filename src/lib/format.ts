@@ -59,3 +59,11 @@ export function spokenDuration({ days, hours, minutes }: CountdownParts): string
   if (!days) parts.push(plural(minutes, 'minute'));
   return parts.join(', ');
 }
+
+/** "NOVEMBER" for this year, "NOVEMBER 2025" for earlier years (device locale). */
+export function formatCreatedMonth(date: Date, now = new Date()): string {
+  const sameYear = date.getFullYear() === now.getFullYear();
+  return date
+    .toLocaleDateString(undefined, sameYear ? { month: 'long' } : { month: 'long', year: 'numeric' })
+    .toLocaleUpperCase();
+}

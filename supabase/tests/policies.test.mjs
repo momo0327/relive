@@ -100,6 +100,7 @@ await test('creator becomes owner of a new trip', async () => {
   assert.equal(trips.rows.length, 1);
   assert.equal(trips.rows[0].role, 'owner');
   assert.equal(trips.rows[0].status, 'active');
+  assert.ok(trips.rows[0].created_at, 'list_my_trips returns created_at for the card date');
 });
 
 await test('rejects invalid trip input', async () => {

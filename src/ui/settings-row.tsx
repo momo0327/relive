@@ -2,6 +2,7 @@ import type { SymbolViewProps } from 'expo-symbols';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
+import { withTap } from './haptics';
 import { Icon, Txt } from './primitives';
 import { space, useTheme } from './theme';
 
@@ -60,7 +61,7 @@ export function SettingsRow({
   }
   return (
     <Pressable
-      onPress={onPress}
+      onPress={withTap(onPress)}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={accessibilityHint}

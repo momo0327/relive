@@ -15,6 +15,7 @@ import { Avatar } from '@/ui/avatar';
 import { Icon, Txt } from '@/ui/primitives';
 import { SettingsRow } from '@/ui/settings-row';
 import { radius, space, useTheme } from '@/ui/theme';
+import { haptic, withTap } from '@/ui/haptics';
 
 export default function Settings() {
   const c = useTheme();
@@ -124,7 +125,7 @@ export default function Settings() {
       <View style={{ width: readableWidth, gap: space.lg }}>
         {/* Profile */}
         <Pressable
-          onPress={() => router.push('/profile')}
+          onPress={withTap(() => router.push('/profile'))}
           accessibilityRole="button"
           accessibilityLabel={`${displayName}${email ? `, ${email}` : ''}`}
           accessibilityHint="Edit your name, photo and avatar colour"
@@ -146,19 +147,32 @@ export default function Settings() {
           <SettingsRow icon="circle.lefthalf.filled" label="Match system">
             <Switch
               value={pref === 'system'}
-              onValueChange={(on) => setPref(on ? 'system' : c.scheme)}
+              onValueChange={(on) => {
+                haptic.select();
+                setPref(on ? 'system' : c.scheme);
+              }}
               accessibilityLabel="Match system appearance"
             />
           </SettingsRow>
           <SettingsRow icon="moon" label="Dark mode">
             <Switch
               value={c.scheme === 'dark'}
-              onValueChange={(on) => setPref(on ? 'dark' : 'light')}
+              onValueChange={(on) => {
+                haptic.select();
+                setPref(on ? 'dark' : 'light');
+              }}
               accessibilityLabel="Dark mode"
             />
           </SettingsRow>
           <SettingsRow icon="bell" label="Trip reminders">
-            <Switch value={reminders} onValueChange={toggleReminders} accessibilityLabel="Trip reminders" />
+            <Switch
+              value={reminders}
+              onValueChange={(on) => {
+                haptic.select();
+                toggleReminders(on);
+              }}
+              accessibilityLabel="Trip reminders"
+            />
           </SettingsRow>
           <SettingsRow
             icon="hand.raised"

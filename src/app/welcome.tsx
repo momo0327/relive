@@ -12,6 +12,7 @@ import { CancelledError, useSession } from '@/lib/session';
 import { useLayout } from '@/ui/layout';
 import { Button, Txt } from '@/ui/primitives';
 import { radius, space, useTheme } from '@/ui/theme';
+import { withTap } from '@/ui/haptics';
 
 export default function Welcome() {
   const c = useTheme();
@@ -103,7 +104,7 @@ export default function Welcome() {
                   tone="tertiary"
                   style={{ textAlign: 'center' }}
                   accessibilityRole="link"
-                  onPress={() => (busy ? undefined : router.push('/email-sign-in'))}>
+                  onPress={withTap(() => (busy ? undefined : router.push('/email-sign-in')))}>
                   Sign in with email
                 </Txt>
               ) : null}

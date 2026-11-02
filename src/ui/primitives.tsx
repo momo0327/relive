@@ -1,5 +1,4 @@
 import { GlassView, isGlassEffectAPIAvailable } from 'expo-glass-effect';
-import * as Haptics from 'expo-haptics';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import type { ReactNode } from 'react';
 import {
@@ -17,6 +16,7 @@ import {
 } from 'react-native';
 
 import { useA11yPrefs } from './a11y';
+import { haptic as tapHaptic, withTap } from './haptics';
 import { radius, space, useTheme } from './theme';
 
 // ---------------------------------------------------------------------------
@@ -116,7 +116,7 @@ export function Button({ title, kind = 'primary', icon, loading, disabled, style
       accessibilityState={{ disabled: !!inactive, busy: !!loading }}
       disabled={inactive}
       onPress={(e) => {
-        if (haptic) Haptics.selectionAsync().catch(() => undefined);
+        if (haptic) tapHaptic.tap();
         onPress?.(e);
       }}
       style={({ pressed }) => [
@@ -166,7 +166,7 @@ export function IconButton({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
-      onPress={onPress}
+      onPress={withTap(onPress)}
       disabled={disabled}
       hitSlop={8}
       style={({ pressed }) => ({ opacity: disabled ? 0.4 : pressed ? 0.7 : 1 })}>

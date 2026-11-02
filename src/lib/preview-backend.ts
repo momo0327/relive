@@ -127,7 +127,7 @@ export const previewBackend: Backend = {
     const id = `preview-${Crypto.randomUUID()}`;
     const coverTone = coverUri ? await measureTone(coverUri) : 'dark';
     store.trips.unshift({
-      id, name, coverUrl: coverUri, coverKey: coverUri, coverTone, startsAt, unlocksAt,
+      id, name, coverUrl: coverUri, coverKey: coverUri, coverTone, startsAt, unlocksAt, createdAt: new Date(),
       status: 'upcoming', isOwner: true, memberCount: 1, memoryCount: 0, myMemoryCount: 0,
       members: [me],
     });

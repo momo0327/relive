@@ -1,5 +1,3 @@
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useIsFocused, useRouter } from 'expo-router';
 import type { SymbolViewProps } from 'expo-symbols';
 import { useEffect, useState } from 'react';
@@ -8,10 +6,9 @@ import { Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-nativ
 import { formatBytes, formatDuration, formatRevealMoment, plural, splitDuration, spokenDuration } from '@/lib/format';
 import type { TripDetail } from '@/lib/types';
 import { useTripUploads, type QueueItem } from '@/lib/uploads';
-import { useA11yPrefs } from '@/ui/a11y';
 import { useLayout } from '@/ui/layout';
 import { FloatingButton } from '@/ui/floating-button';
-import { MembersRow } from '@/ui/members-row';
+import { HERO_OVERLAP, TripHero } from '@/ui/trip-hero';
 import { Button, Card, Icon, Row, Txt } from '@/ui/primitives';
 import { radius, space, useTheme } from '@/ui/theme';
 import { useCountdown } from '@/ui/trip-visuals';
@@ -27,8 +24,7 @@ export function LockedTripView({
 }) {
   const router = useRouter();
   const c = useTheme();
-  const { gutter, readableWidth } = useLayout();
-  const { reduceTransparency } = useA11yPrefs();
+  const { readableWidth } = useLayout();
   const { items, online, retry, discard, clearDone } = useTripUploads(trip.id);
   const [refreshing, setRefreshing] = useState(false);
   const focused = useIsFocused();
@@ -47,26 +43,9 @@ export function LockedTripView({
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Decorative stand-in for the gallery. The real memories are never sent to
-          the device before the reveal, so these tiles are abstract placeholders. */}
-      <View style={StyleSheet.absoluteFill} pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-        <GhostGrid seed={trip.id} />
-        {reduceTransparency ? (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: c.background, opacity: 0.94 }]} />
-        ) : (
-          <>
-            <BlurView
-              intensity={60}
-              tint={c.scheme === 'dark' ? 'systemThickMaterialDark' : 'systemThickMaterialLight'}
-              style={StyleSheet.absoluteFill}
-            />
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: c.background, opacity: 0.45 }]} />
-          </>
-        )}
-      </View>
-
       <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
+        // The banner runs under the status bar and header.
+        contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -78,14 +57,11 @@ export function LockedTripView({
             }}
           />
         }
-        contentContainerStyle={{ alignItems: 'center', paddingHorizontal: gutter, paddingBottom: 140 }}>
-        <View style={{ width: readableWidth, gap: space.lg, paddingTop: space.sm }}>
-          <View style={{ alignItems: 'center', marginBottom: space.sm }}>
-            <MembersRow members={trip.members} onInvite={() => router.push(`/trips/${trip.id}/invite`)} />
-          </View>
-
-          <View style={[styles.panel, { backgroundColor: c.frost, borderColor: c.border }]}>
-            <View style={[styles.lockBadge, { backgroundColor: c.frostStrong }]}>
+        contentContainerStyle={{ alignItems: 'center', paddingBottom: 140 }}>
+        <TripHero trip={trip} onInvite={() => router.push(`/trips/${trip.id}/invite`)} />
+        <View style={{ width: readableWidth, gap: space.lg, marginTop: -HERO_OVERLAP, paddingHorizontal: 0 }}>
+          <View style={[styles.panel, { backgroundColor: c.surface, borderColor: c.border }]}>
+            <View style={[styles.lockBadge, { backgroundColor: c.background }]}>
               <Icon name="lock.fill" size={30} color={c.text} />
             </View>
             <View style={{ gap: space.sm, alignItems: 'center' }}>
@@ -118,47 +94,6 @@ export function LockedTripView({
   );
 }
 
-/** Deterministic 0–1 value from a string (FNV-1a), so the layout is stable per trip. */
-function seededRandom(key: string) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < key.length; i += 1) h = Math.imul(h ^ key.charCodeAt(i), 0x01000193);
-  return (h >>> 0) / 0xffffffff;
-}
-
-/** Masonry of abstract tiles that suggests a gallery without showing anything. */
-function GhostGrid({ seed }: { seed: string }) {
-  const { width, height, gutter } = useLayout();
-  const columns = width >= 600 ? 4 : 2;
-  const gap = 10;
-  const colWidth = (width - gutter * 2 - gap * (columns - 1)) / columns;
-  const palette: [string, string][] = [
-    ['#E9B9A6', '#7D5BA6'], ['#F3CF7A', '#D9773B'], ['#9ED8E6', '#3D63B8'], ['#E7A6C4', '#9C2F67'],
-    ['#A8DCC3', '#2F7A5B'], ['#D8C3A0', '#8A5A2B'], ['#B8B3E8', '#4B46A8'], ['#E6A9A0', '#8E3A32'],
-  ];
-  const cols = Array.from({ length: columns }, (_, ci) => {
-    const tiles: { h: number; colors: [string, string] }[] = [];
-    let total = ci % 2 === 1 ? -40 : 0;
-    for (let ti = 0; total < height; ti += 1) {
-      const tileHeight = colWidth * (0.8 + seededRandom(`${seed}:${ci}:${ti}:h`) * 0.7);
-      tiles.push({ h: tileHeight, colors: palette[Math.floor(seededRandom(`${seed}:${ci}:${ti}:c`) * palette.length)] });
-      total += tileHeight + gap;
-    }
-    return tiles;
-  });
-
-  return (
-    <View style={{ flexDirection: 'row', gap, paddingHorizontal: gutter, paddingTop: 140 }}>
-      {cols.map((tiles, ci) => (
-        <View key={ci} style={{ width: colWidth, gap }}>
-          {tiles.map((t, ti) => (
-            <LinearGradient key={ti} colors={t.colors} style={{ height: t.h, borderRadius: 14 }} />
-          ))}
-        </View>
-      ))}
-    </View>
-  );
-}
-
 function CountdownBoxes({ unlocksAt, onElapsed }: { unlocksAt: Date; onElapsed: () => void }) {
   const c = useTheme();
   const remaining = useCountdown(unlocksAt, onElapsed);
@@ -179,7 +114,7 @@ function CountdownBoxes({ unlocksAt, onElapsed }: { unlocksAt: Date; onElapsed: 
   return (
     <View style={{ flexDirection: 'row', gap: space.sm, alignSelf: 'stretch' }} accessible accessibilityRole="timer" accessibilityLabel={`Unlocks in ${spokenDuration(parts)}`}>
       {units.map(([value, unit]) => (
-        <View key={unit} style={[styles.countBox, { backgroundColor: c.frostStrong }]}>
+        <View key={unit} style={[styles.countBox, { backgroundColor: c.background }]}>
           <Txt variant="title" maxFontSizeMultiplier={1.3} style={{ fontVariant: ['tabular-nums'] }}>
             {value}
           </Txt>
@@ -198,8 +133,8 @@ function StatPill({ icon, value, label }: { icon: SymbolViewProps['name']; value
     <View
       accessible
       accessibilityLabel={`${value} ${label}`}
-      style={[styles.statPill, { backgroundColor: c.frost, borderColor: c.border }]}>
-      <View style={[styles.statIcon, { backgroundColor: c.frostStrong }]}>
+      style={[styles.statPill, { backgroundColor: c.surface, borderColor: c.border }]}>
+      <View style={[styles.statIcon, { backgroundColor: c.background }]}>
         <Icon name={icon} size={18} color={c.text} />
       </View>
       <View>

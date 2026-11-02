@@ -11,6 +11,7 @@ import { Button, Card, Icon, Row, Txt } from '@/ui/primitives';
 import { PosterEditor, type PosterCover } from '@/ui/poster-editor';
 import { SheetLayout } from '@/ui/sheet-layout';
 import { space, useTheme } from '@/ui/theme';
+import { haptic } from '@/ui/haptics';
 
 const DAY = 24 * 60 * 60 * 1000;
 const MAX_DAYS = 62;
@@ -104,7 +105,10 @@ function DateRow({ label, value, minimumDate, onChange }: { label: string; value
         mode="date"
         display={Platform.OS === 'ios' ? 'compact' : 'default'}
         minimumDate={minimumDate}
-        onValueChange={(_e, d) => onChange(startOfDay(d))}
+        onValueChange={(_e, d) => {
+          haptic.select();
+          onChange(startOfDay(d));
+        }}
         accessibilityLabel={`${label} date`}
       />
     </Row>

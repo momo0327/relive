@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import type { Member } from '@/lib/types';
 
 import { Avatar } from './avatar';
+import { withTap } from './haptics';
 import { Icon, Txt } from './primitives';
 import { useTheme } from './theme';
 
@@ -43,7 +44,7 @@ export function MembersRow({ members, onInvite }: { members: Member[]; onInvite?
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Invite friends"
-          onPress={onInvite}
+          onPress={withTap(onInvite)}
           hitSlop={8}
           style={({ pressed }) => [styles.avatar, ring, { backgroundColor: c.surface, marginLeft: -OVERLAP + 4, opacity: pressed ? 0.7 : 1 }]}>
           <Icon name="plus" size={14} color={c.textSecondary} weight="semibold" />

@@ -10,6 +10,7 @@ import { Button, Icon, Row, Txt } from '@/ui/primitives';
 import { SheetLayout } from '@/ui/sheet-layout';
 import { LoadingState } from '@/ui/states';
 import { radius, space, useTheme } from '@/ui/theme';
+import { haptic, withTap } from '@/ui/haptics';
 
 /** Edit Profile sheet: name, profile photo and avatar colour. */
 export default function EditProfile() {
@@ -70,7 +71,7 @@ export default function EditProfile() {
   return (
     <SheetLayout footer={<Button title="Save" onPress={save} loading={saving} disabled={!trimmed} />}>
       <View style={{ alignItems: 'center', gap: space.lg }}>
-        <Pressable onPress={choosePhoto} accessibilityRole="button" accessibilityLabel="Choose profile photo">
+        <Pressable onPress={withTap(choosePhoto)} accessibilityRole="button" accessibilityLabel="Choose profile photo">
           <Avatar id={userId ?? 'me'} name={trimmed || '?'} url={shownPhoto} color={color} size={120} />
           <View style={[styles.cameraBadge, { backgroundColor: c.text, borderColor: c.background }]}>
             <Icon name="camera.fill" size={15} color={c.background} />
@@ -94,7 +95,10 @@ export default function EditProfile() {
             return (
               <Pressable
                 key={swatch}
-                onPress={() => setColor(swatch)}
+                onPress={() => {
+                  haptic.select();
+                  setColor(swatch);
+                }}
                 accessibilityRole="radio"
                 accessibilityState={{ checked: selected }}
                 accessibilityLabel={`Colour ${AVATAR_COLORS.indexOf(swatch) + 1}`}

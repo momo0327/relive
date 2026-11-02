@@ -13,6 +13,7 @@ import { useA11yPrefs } from '@/ui/a11y';
 import { useLayout } from '@/ui/layout';
 import { Button, Glass, IconButton, Row, Txt } from '@/ui/primitives';
 import { radius, space } from '@/ui/theme';
+import { haptic, withTap } from '@/ui/haptics';
 
 type Mode = 'picture' | 'video';
 
@@ -184,7 +185,7 @@ export default function Capture() {
         glass
         overMedia
         disabled={recording}
-        onPress={() => setFacing((f) => (f === 'back' ? 'front' : 'back'))}
+        onPress={withTap(() => setFacing((f) => (f === 'back' ? 'front' : 'back')))}
       />
     </View>
   );
@@ -225,7 +226,10 @@ export default function Capture() {
                 key={m}
                 accessibilityRole="tab"
                 accessibilityState={{ selected: mode === m }}
-                onPress={() => switchMode(m)}
+                onPress={() => {
+                  haptic.select();
+                  switchMode(m);
+                }}
                 style={[styles.modeItem, mode === m && { backgroundColor: 'rgba(255,255,255,0.22)' }]}>
                 <Txt variant="subhead" style={{ color: '#fff', fontWeight: mode === m ? '600' : '400' }}>
                   {m === 'picture' ? 'Photo' : 'Video'}
@@ -241,7 +245,7 @@ export default function Capture() {
             tint="#fff"
             glass
             overMedia
-            onPress={() => setFlash((f) => (f === 'on' ? 'off' : 'on'))}
+            onPress={withTap(() => setFlash((f) => (f === 'on' ? 'off' : 'on')))}
           />
         ) : (
           <View style={{ width: 44 }} />

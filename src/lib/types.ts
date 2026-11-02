@@ -14,6 +14,8 @@ export type TripSummary = {
   memberCount: number;
   memoryCount: number;
   myMemoryCount: number;
+  /** When the trip was created (shown on home cards); not loaded on the trip page. */
+  createdAt?: Date | null;
 };
 
 export type Member = {
