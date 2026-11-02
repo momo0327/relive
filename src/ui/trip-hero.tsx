@@ -9,7 +9,7 @@ import { formatTripDates } from '@/lib/format';
 import type { TripDetail } from '@/lib/types';
 
 import { useLayout } from './layout';
-import { MembersRow } from './members-row';
+import { MembersRow, MembersRowSkeleton } from './members-row';
 import { Txt } from './primitives';
 import { space, useTheme } from './theme';
 import { Cover } from './trip-visuals';
@@ -84,16 +84,17 @@ export function TripHeroScroll({
             variant="hero"
             numberOfLines={2}
             maxFontSizeMultiplier={1.3}
-            style={{ color: '#fff', fontWeight: '700', fontSize: 38, lineHeight: 44 }}
+            // Same lettering as the home card's title, smaller.
+            style={styles.title}
             accessibilityRole="header">
-            {trip.name}
+            {trip.name.toLocaleUpperCase()}
           </Txt>
           <Txt variant="callout" style={{ color: 'rgba(255,255,255,0.88)' }}>
             {formatTripDates(trip.startsAt, trip.unlocksAt)}
           </Txt>
-          {/* Same height while members load, so nothing shifts when they appear. */}
+          {/* Ripple placeholder while members load, same size so nothing shifts. */}
           <View style={{ marginTop: space.md, minHeight: 36 }}>
-            {trip.members.length ? <MembersRow members={trip.members} onInvite={onInvite} /> : null}
+            {trip.members.length ? <MembersRow members={trip.members} onInvite={onInvite} /> : <MembersRowSkeleton count={Math.min(Math.max(trip.memberCount, 2), 6)} />}
           </View>
         </View>
       </View>
@@ -105,4 +106,5 @@ export function TripHeroScroll({
 const styles = StyleSheet.create({
   fill: { flex: 1, borderRadius: 0 },
   text: { position: 'absolute', gap: 2 },
+  title: { fontFamily: 'ProtestStrike_400Regular', fontWeight: 'normal', fontSize: 42, lineHeight: 44, color: '#fff' },
 });

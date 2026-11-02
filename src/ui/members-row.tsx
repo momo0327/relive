@@ -1,7 +1,19 @@
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
+import Animated, {
+  Easing,
+  Extrapolation,
+  interpolate,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  type SharedValue,
+} from 'react-native-reanimated';
 
 import type { Member } from '@/lib/types';
 
+import { useA11yPrefs } from './a11y';
 import { Avatar } from './avatar';
 import { withTap } from './haptics';
 import { Icon, Txt } from './primitives';
@@ -58,3 +70,51 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center' },
   avatar: { width: SIZE, height: SIZE, borderRadius: SIZE / 2, alignItems: 'center', justifyContent: 'center' },
 });
+
+/** Loading placeholder for MembersRow: overlapping circles with a soft ripple of light passing across them. */
+export function MembersRowSkeleton({ count = 4 }: { count?: number }) {
+  const c = useTheme();
+  const { reduceMotion } = useA11yPrefs();
+  const clock = useSharedValue(0);
+  useEffect(() => {
+    if (reduceMotion) return;
+    clock.value = withRepeat(withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.quad) }), -1, false);
+  }, [clock, reduceMotion]);
+  return (
+    <View style={styles.row} accessible accessibilityLabel="Loading members">
+      {Array.from({ length: count }, (_, i) => (
+        <SkeletonDot key={i} index={i} count={count} clock={clock} ring={c.background} marginLeft={i === 0 ? 0 : -OVERLAP} />
+      ))}
+    </View>
+  );
+}
+
+function SkeletonDot({
+  index,
+  count,
+  clock,
+  ring,
+  marginLeft,
+}: {
+  index: number;
+  count: number;
+  clock: SharedValue<number>;
+  ring: string;
+  marginLeft: number;
+}) {
+  // Each circle brightens as the wave passes over it, left to right.
+  const style = useAnimatedStyle(() => {
+    const center = (index + 0.5) / count;
+    const distance = Math.abs(clock.value * 1.6 - 0.3 - center);
+    return { opacity: interpolate(distance, [0, 0.35], [0.55, 0.22], Extrapolation.CLAMP) };
+  });
+  return (
+    <Animated.View
+      style={[
+        styles.avatar,
+        { borderColor: ring, borderWidth: 2, marginLeft, zIndex: count - index, backgroundColor: '#FFFFFF' },
+        style,
+      ]}
+    />
+  );
+}
