@@ -20,6 +20,9 @@ function gradientFor(seed: string): [string, string] {
 }
 
 /** Trip cover photo (chosen by the creator, not a trip memory) or a gradient. */
+/** Height ÷ width of covers already shown, by cache key, so pages can size them before loading. */
+export const coverAspects = new Map<string, number>();
+
 export function Cover({
   uri,
   cacheKey,
@@ -27,7 +30,12 @@ export function Cover({
   style,
   children,
   scrim = true,
+  instant = false,
+  onAspect,
 }: {
+  /** Skip the fade-in (e.g. when continuing a transition from an already-visible cover). */
+  instant?: boolean;
+  onAspect?: (heightOverWidth: number) => void;
   uri: string | null;
   cacheKey: string | null;
   seed: string;
@@ -43,7 +51,14 @@ export function Cover({
           source={{ uri, cacheKey: cacheKey ?? undefined }}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
-          transition={200}
+          transition={instant ? 0 : 200}
+          onLoad={(e) => {
+            const { width, height } = e.source;
+            if (!width || !height) return;
+            const aspect = height / width;
+            coverAspects.set(cacheKey ?? uri, aspect);
+            onAspect?.(aspect);
+          }}
           accessibilityIgnoresInvertColors
         />
       ) : (

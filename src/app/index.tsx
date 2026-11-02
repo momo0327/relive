@@ -5,6 +5,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-n
 import { formatTripDates, plural } from '@/lib/format';
 import { syncTripNotifications } from '@/lib/notifications';
 import { useSession } from '@/lib/session';
+import { setTripPreview } from '@/lib/trip-preview';
 import type { TripSummary } from '@/lib/types';
 import { useLoad } from '@/lib/use-load';
 import { useLayout } from '@/ui/layout';
@@ -108,7 +109,13 @@ function TripCard({ trip, width }: { trip: TripSummary; width: number }) {
   // iOS zoom transition: the card grows to fill the screen and settles into the
   // trip page's banner (Link.AppleZoomTarget in TripHero).
   return (
-    <Link href={`/trips/${trip.id}`} asChild onPress={() => haptic.tap()}>
+    <Link
+      href={`/trips/${trip.id}`}
+      asChild
+      onPress={() => {
+        haptic.tap();
+        setTripPreview(trip);
+      }}>
       <Pressable accessibilityRole="button" accessibilityLabel={a11y} style={{ width }}>
         <Link.AppleZoom>
           <View style={styles.zoomSource}>

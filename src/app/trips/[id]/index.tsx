@@ -1,7 +1,8 @@
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useSession } from '@/lib/session';
+import { getTripPreview } from '@/lib/trip-preview';
 import { useLoad } from '@/lib/use-load';
 import { GalleryView } from '@/screens/gallery';
 import { LockedTripView } from '@/screens/locked-trip';
@@ -12,7 +13,11 @@ export default function TripScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { backend } = useSession();
-  const { data: trip, error, reload } = useLoad(() => backend.getTrip(id));
+  const { data: loaded, error, reload } = useLoad(() => backend.getTrip(id));
+  // Until the details arrive, draw from the home card's data so the zoom
+  // transition lands on the cover, not a loading screen.
+  const [preview] = useState(() => getTripPreview(id));
+  const trip = loaded ?? preview;
   const polls = useRef(0);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 

@@ -6,7 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { useEffect, useMemo, useState, type ComponentType } from 'react';
-import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatDuration, plural } from '@/lib/format';
@@ -17,7 +17,7 @@ import { useLoad } from '@/lib/use-load';
 import { setViewerItems } from '@/lib/viewer-cache';
 import { useA11yPrefs } from '@/ui/a11y';
 import { useLayout } from '@/ui/layout';
-import { HERO_OVERLAP, TripHero } from '@/ui/trip-hero';
+import { HERO_OVERLAP, TripHeroScroll } from '@/ui/trip-hero';
 import { Icon, Row, Txt } from '@/ui/primitives';
 import { ErrorState, LoadingState, MessageState } from '@/ui/states';
 import { radius, space, useTheme } from '@/ui/theme';
@@ -67,7 +67,6 @@ export function GalleryView({ trip }: { trip: TripDetail }) {
     [data],
   );
 
-  if (!data) return error ? <ErrorState message={error} onRetry={reload} /> : <LoadingState label="Loading memories" />;
 
   const gridWidth = regular ? contentWidth : width - gutter * 2;
   const columnWidth = (gridWidth - GAP * (galleryColumns - 1)) / galleryColumns;
@@ -96,10 +95,8 @@ export function GalleryView({ trip }: { trip: TripDetail }) {
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView
-        // The banner runs under the status bar and header.
-        contentInsetAdjustmentBehavior="never"
-        showsVerticalScrollIndicator={false}
+      <TripHeroScroll
+        trip={trip}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -111,13 +108,17 @@ export function GalleryView({ trip }: { trip: TripDetail }) {
           />
         }
         contentContainerStyle={{ alignItems: 'center', paddingBottom: 120 }}>
-        <TripHero trip={trip} />
         {/* Rounded panel that slides over the bottom of the banner. */}
-        <View style={[styles.panel, { width, marginTop: -HERO_OVERLAP, backgroundColor: c.background }]}>
+        <View style={[styles.panel, { width, backgroundColor: c.background }]}>
         <View style={{ width: gridWidth, gap: space.lg, alignSelf: 'center' }}>
           {counts.all > 0 ? <FilterBar value={filter} onChange={setFilter} /> : null}
 
-          {items.length === 0 ? (
+          {!data ? (
+            // The cover stays put while memories load; only this area waits.
+            <View style={{ minHeight: 320 }}>
+              {error ? <ErrorState message={error} onRetry={reload} /> : <LoadingState label="Loading memories" />}
+            </View>
+          ) : items.length === 0 ? (
             <View style={{ minHeight: 320 }}>
               <MessageState
                 icon="photo.on.rectangle.angled"
@@ -150,7 +151,7 @@ export function GalleryView({ trip }: { trip: TripDetail }) {
           )}
         </View>
         </View>
-      </ScrollView>
+      </TripHeroScroll>
 
       {counts.all > 0 ? (
         <ExportBar

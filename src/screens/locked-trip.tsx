@@ -1,14 +1,14 @@
 import { useIsFocused, useRouter } from 'expo-router';
 import type { SymbolViewProps } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { Alert, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { formatBytes, formatDuration, formatRevealMoment, plural, splitDuration, spokenDuration } from '@/lib/format';
 import type { TripDetail } from '@/lib/types';
 import { useTripUploads, type QueueItem } from '@/lib/uploads';
 import { useLayout } from '@/ui/layout';
 import { FloatingButton } from '@/ui/floating-button';
-import { HERO_OVERLAP, TripHero } from '@/ui/trip-hero';
+import { TripHeroScroll } from '@/ui/trip-hero';
 import { Button, Card, Icon, Row, Txt } from '@/ui/primitives';
 import { radius, space, useTheme } from '@/ui/theme';
 import { useCountdown } from '@/ui/trip-visuals';
@@ -43,10 +43,9 @@ export function LockedTripView({
 
   return (
     <View style={{ flex: 1 }}>
-      <ScrollView
-        // The banner runs under the status bar and header.
-        contentInsetAdjustmentBehavior="never"
-        showsVerticalScrollIndicator={false}
+      <TripHeroScroll
+        trip={trip}
+        onInvite={() => router.push(`/trips/${trip.id}/invite`)}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -58,8 +57,7 @@ export function LockedTripView({
           />
         }
         contentContainerStyle={{ alignItems: 'center', paddingBottom: 140 }}>
-        <TripHero trip={trip} onInvite={() => router.push(`/trips/${trip.id}/invite`)} />
-        <View style={{ width: readableWidth, gap: space.lg, marginTop: -HERO_OVERLAP, paddingHorizontal: 0 }}>
+        <View style={{ width: readableWidth, gap: space.lg }}>
           <View style={[styles.panel, { backgroundColor: c.surface, borderColor: c.border }]}>
             <View style={[styles.lockBadge, { backgroundColor: c.background }]}>
               <Icon name="lock.fill" size={30} color={c.text} />
@@ -82,7 +80,7 @@ export function LockedTripView({
 
           {items.length > 0 ? <UploadPanel items={items} online={online} onRetry={retry} onDiscard={discard} /> : null}
         </View>
-      </ScrollView>
+      </TripHeroScroll>
 
       <FloatingButton
         icon="camera.fill"
