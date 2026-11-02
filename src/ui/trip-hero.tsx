@@ -1,15 +1,17 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState, type ReactElement, type ReactNode } from 'react';
+import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { StyleSheet, View, type RefreshControlProps, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
+  Easing,
   Extrapolation,
   interpolate,
-  useAnimatedReaction,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
+  withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
@@ -23,6 +25,9 @@ import { Txt } from './primitives';
 import { space, useTheme } from './theme';
 import { Cover, coverAspects } from './trip-visuals';
 
+/** Lets the iOS zoom transition finish before the cover settles into the banner. */
+const ZOOM_SETTLE_MS = 420;
+
 /** Height of the part of the banner that the page content overlaps. */
 export const HERO_OVERLAP = 28;
 
@@ -35,10 +40,10 @@ function withAlpha(hex: string, alpha: number) {
 /**
  * Trip page layout with a collapsing cover.
  *
- * Opens on the full-screen cover with the poster title (the home card's zoom
- * transition lands here). Scrolling up shrinks the photo into a banner while
- * the poster title fades out and the banner title, dates and members fade in,
- * and the page content slides up over it. Snaps to either state.
+ * Opens on the cover at its own proportions with the poster title (the home
+ * card's zoom transition lands here), then animates on its own into the
+ * banner layout: the photo shrinks, the poster title fades out, the banner
+ * title, dates and members fade in, and the page content slides up.
  */
 export function TripHeroScroll({
   trip,
@@ -68,25 +73,36 @@ export function TripHeroScroll({
   const distance = full - banner;
 
   const y = useSharedValue(0);
+  // 0 = cover at full size with the poster title (where the zoom lands),
+  // 1 = the page's normal banner layout. Plays once, right after the zoom.
+  const t = useSharedValue(distance > 0 ? 0 : 1);
   const [collapsed, setCollapsed] = useState(distance <= 0);
+  useEffect(() => {
+    if (distance <= 0) return;
+    t.value = withDelay(
+      ZOOM_SETTLE_MS,
+      withTiming(1, { duration: 650, easing: Easing.out(Easing.cubic) }, (done) => {
+        if (done) scheduleOnRN(setCollapsed, true);
+      }),
+    );
+    // Only on first appearance; later size changes keep the settled layout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const onScroll = useAnimatedScrollHandler((e) => {
     y.value = e.contentOffset.y;
   });
-  useAnimatedReaction(
-    () => distance <= 0 || y.value > distance * 0.6,
-    (now, before) => {
-      if (now !== before) scheduleOnRN(setCollapsed, now);
-    },
-  );
 
-  // Photo layer: full screen → banner, then scrolls away with the content.
+  // Photo layer: shrinks from full size to the banner, then scrolls away with
+  // the page (and stretches a little when pulled down at the top).
   const heroStyle = useAnimatedStyle(() => ({
-    height: y.value < distance ? full - y.value : banner,
-    transform: [{ translateY: y.value > distance ? distance - y.value : 0 }],
+    height: banner + distance * (1 - t.value) + Math.max(0, -y.value),
+    transform: [{ translateY: Math.min(0, -y.value) }],
   }));
+  // Page content starts below the full-size cover and rises into place.
+  const contentStyle = useAnimatedStyle(() => ({ transform: [{ translateY: distance * (1 - t.value) }] }));
   const progress = () => {
     'worklet';
-    return distance > 0 ? interpolate(y.value, [0, distance], [0, 1], Extrapolation.CLAMP) : 1;
+    return t.value;
   };
   const posterStyle = useAnimatedStyle(() => {
     const p = progress();
@@ -163,13 +179,11 @@ export function TripHeroScroll({
         // The cover runs under the status bar and header.
         contentInsetAdjustmentBehavior="never"
         showsVerticalScrollIndicator={false}
-        snapToOffsets={distance > 0 ? [0, distance] : undefined}
-        snapToEnd={false}
-        decelerationRate="fast"
         refreshControl={refreshControl}
         contentContainerStyle={contentContainerStyle}>
         {/* Space over the cover; the banner's name, dates and members sit at its bottom. */}
-        <View style={{ width, height: full - HERO_OVERLAP }} pointerEvents="box-none">
+        <Animated.View style={contentStyle}>
+        <View style={{ width, height: banner - HERO_OVERLAP }} pointerEvents="box-none">
           <Animated.View
             style={[styles.bannerText, { left: gutter, right: gutter, bottom: space.xl }, bannerTextStyle]}
             pointerEvents={collapsed ? 'box-none' : 'none'}
@@ -191,6 +205,7 @@ export function TripHeroScroll({
           </Animated.View>
         </View>
         {children}
+        </Animated.View>
       </Animated.ScrollView>
     </View>
   );

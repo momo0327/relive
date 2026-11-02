@@ -28,6 +28,8 @@ export function LockedTripView({
   const { items, online, retry, discard, clearDone } = useTripUploads(trip.id);
   const [refreshing, setRefreshing] = useState(false);
   const focused = useIsFocused();
+  // While details load, the home card's count stands in for the member list.
+  const memberCount = trip.members.length || trip.memberCount;
 
   // When a batch of uploads finishes cleanly, confirm with the "saved" sheet.
   const active = items.filter((i) => i.status === 'queued' || i.status === 'uploading').length;
@@ -75,7 +77,7 @@ export function LockedTripView({
 
           <Row gap={space.md} style={{ flexWrap: 'wrap' }}>
             <StatPill icon="photo.stack" value={trip.memoryCount} label={trip.memoryCount === 1 ? 'Memory' : 'Memories'} />
-            <StatPill icon="person.2.fill" value={trip.members.length} label={trip.members.length === 1 ? 'Member' : 'Members'} />
+            <StatPill icon="person.2.fill" value={memberCount} label={memberCount === 1 ? 'Member' : 'Members'} />
           </Row>
 
           {items.length > 0 ? <UploadPanel items={items} online={online} onRetry={retry} onDiscard={discard} /> : null}
