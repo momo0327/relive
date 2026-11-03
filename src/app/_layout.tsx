@@ -92,7 +92,13 @@ function AppStack() {
           {/* Fades in full screen, as its own focused flow. */}
           <Stack.Screen
             name="trips/new"
-            options={{ headerShown: false, animation: 'fade', gestureEnabled: false, contentStyle: { backgroundColor: c.background } }}
+            options={{
+              headerShown: false,
+              animation: 'fade',
+              animationDuration: 220,
+              gestureEnabled: false,
+              contentStyle: { backgroundColor: c.background },
+            }}
           />
           <Stack.Screen name="trips/unsplash" options={{ headerShown: false, presentation: 'modal' }} />
           <Stack.Screen name="trips/[id]/index" options={{ title: '', headerTransparent: true }} />
