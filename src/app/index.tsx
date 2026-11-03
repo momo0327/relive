@@ -9,7 +9,6 @@ import { setTripPreview } from '@/lib/trip-preview';
 import type { TripSummary } from '@/lib/types';
 import { useLoad } from '@/lib/use-load';
 import { useLayout } from '@/ui/layout';
-import { FloatingButton } from '@/ui/floating-button';
 import { ErrorState, LoadingState, MessageState } from '@/ui/states';
 import { radius, space } from '@/ui/theme';
 import { TripPoster } from '@/ui/trip-poster';
@@ -41,7 +40,18 @@ export default function MyTrips() {
         <Stack.Toolbar.Button icon="person.crop.circle" accessibilityLabel="Settings" onPress={withTap(() => router.push('/account'))} />
       </Stack.Toolbar>
       <Stack.Toolbar placement="right">
-        <Stack.Toolbar.Button icon="link" accessibilityLabel="Join a trip with a link" onPress={withTap(() => router.push('/join-link'))} />
+        <Stack.Toolbar.Button
+          icon="link"
+          separateBackground
+          accessibilityLabel="Join a trip with a link"
+          onPress={withTap(() => router.push('/join-link'))}
+        />
+        <Stack.Toolbar.Button
+          icon="plus"
+          separateBackground
+          accessibilityLabel="New trip"
+          onPress={withTap(() => router.push('/trips/new'))}
+        />
       </Stack.Toolbar>
 
     </>
@@ -73,7 +83,7 @@ export default function MyTrips() {
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} />}
-        contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: 120, alignItems: 'center' }}>
+        contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: space.xxxl, alignItems: 'center' }}>
         <View style={{ width: contentWidth, gap: space.xl, paddingTop: space.md }}>
           {trips.length === 0 ? (
             <View style={{ minHeight: 420 }}>
@@ -93,7 +103,6 @@ export default function MyTrips() {
           )}
         </View>
       </ScrollView>
-      <FloatingButton icon="plus" variant="plain" label="New trip" onPress={() => router.push('/trips/new')} />
     </>
   );
 }

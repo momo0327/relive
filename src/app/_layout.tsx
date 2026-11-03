@@ -89,7 +89,12 @@ function AppStack() {
             options={{ title: 'Memories', headerTitle: '', headerTransparent: true }}
           />
           <Stack.Screen name="join-link" options={{ ...sheet, title: 'Join a Trip', sheetAllowedDetents: [0.55, 1] }} />
-          <Stack.Screen name="trips/new" options={{ ...sheet, title: 'New Trip', headerShown: true, sheetAllowedDetents: [1] }} />
+          {/* Fades in full screen, as its own focused flow. */}
+          <Stack.Screen
+            name="trips/new"
+            options={{ headerShown: false, animation: 'fade', gestureEnabled: false, contentStyle: { backgroundColor: c.background } }}
+          />
+          <Stack.Screen name="trips/unsplash" options={{ headerShown: false, presentation: 'modal' }} />
           <Stack.Screen name="trips/[id]/index" options={{ title: '', headerTransparent: true }} />
           <Stack.Screen name="trips/[id]/invite" options={{ ...sheet, headerShown: false, sheetAllowedDetents: 'fitToContents' }} />
           <Stack.Screen name="trips/[id]/edit" options={{ ...sheet, title: 'Edit Trip', sheetAllowedDetents: [1] }} />
