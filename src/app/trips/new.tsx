@@ -8,6 +8,7 @@ import {
   Alert,
   Image as RNImage,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -16,6 +17,7 @@ import {
   View,
   type ScrollViewInstance,
 } from 'react-native';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { COVER_COLORS, coverColorUri } from '@/lib/cover-colors';
@@ -29,12 +31,11 @@ import { haptic, withTap } from '@/ui/haptics';
 import { useLayout } from '@/ui/layout';
 import { Button, Icon, Txt } from '@/ui/primitives';
 import { radius, space, useTheme } from '@/ui/theme';
-import { TripPoster } from '@/ui/trip-poster';
 
 const DAY = 24 * 60 * 60 * 1000;
 const MAX_DAYS = 62;
 const NAME_MAX = 40;
-const STEPS = ['Name your trip', 'Trip dates', 'Cover'] as const;
+const STEPS = ['Name your trip', 'Trip dates', 'Cover', 'Preview'] as const;
 
 type Cover =
   | { kind: 'library'; uri: string; tone: 'light' | 'dark' }
@@ -64,7 +65,6 @@ export default function NewTrip() {
   const [start, setStart] = useState(today);
   const [end, setEnd] = useState(addDays(today, 3));
   const [cover, setCover] = useState<Cover | null>(null);
-  const [seed] = useState(() => `new-${Date.now()}`);
   const [saving, setSaving] = useState(false);
 
   const unlocksAt = addDays(end, 1); // midnight after the last day, device time zone
@@ -74,7 +74,8 @@ export default function NewTrip() {
 
   function goTo(next: number) {
     setStep(next);
-    pager.current?.scrollTo({ x: next * width, animated: true });
+    // The preview (last step) is a full-screen overlay above the cover page.
+    pager.current?.scrollTo({ x: Math.min(next, 2) * width, animated: true });
   }
 
   function back() {
@@ -208,11 +209,100 @@ export default function NewTrip() {
 
         {/* 3 · Cover */}
         <View style={page}>
-          <CoverStep name={name} seed={seed} previewUri={previewUri} cover={cover} onCover={setCover} unsplashEnabled={mode === 'live'} />
-          <Button title="Create trip" loading={saving} onPress={create} style={{ marginBottom: insets.bottom + space.md, marginTop: space.md }} />
+          <CoverStep
+            cover={cover}
+            onCover={(next) => {
+              setCover(next);
+              goTo(3);
+            }}
+            unsplashEnabled={mode === 'live'}
+          />
+          <Button
+            title="Continue"
+            onPress={() => {
+              if (!cover) setCover({ kind: 'color', index: 0 });
+              goTo(3);
+            }}
+            style={{ marginBottom: insets.bottom + space.md, marginTop: space.md }}
+          />
         </View>
       </ScrollView>
+
+      {step === 3 && cover ? (
+        <CoverPreview
+          cover={cover}
+          previewUri={previewUri}
+          saving={saving}
+          onBack={() => goTo(2)}
+          onContinue={create}
+        />
+      ) : null}
     </KeyboardAvoidingView>
+  );
+}
+
+/** Full-screen look at the chosen cover before creating the trip. */
+function CoverPreview({
+  cover,
+  previewUri,
+  saving,
+  onBack,
+  onContinue,
+}: {
+  cover: Cover;
+  previewUri: string | null;
+  saving: boolean;
+  onBack: () => void;
+  onContinue: () => void;
+}) {
+  const insets = useSafeAreaInsets();
+  return (
+    <Animated.View entering={FadeIn.duration(250)} exiting={FadeOut.duration(200)} style={[StyleSheet.absoluteFill, { backgroundColor: '#000' }]}>
+      {cover.kind === 'color' ? (
+        <LinearGradient colors={COVER_COLORS[cover.index].colors} start={{ x: 0, y: 0 }} end={{ x: 0.4, y: 1 }} style={StyleSheet.absoluteFill} />
+      ) : previewUri ? (
+        <Image source={{ uri: previewUri }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} accessibilityLabel="Cover preview" />
+      ) : null}
+
+      {/* Rule-of-thirds guides, like a camera framing grid. */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        {[1, 2].map((i) => (
+          <View key={`v${i}`} style={[styles.gridV, { left: `${(i * 100) / 3}%` }]} />
+        ))}
+        {[1, 2].map((i) => (
+          <View key={`h${i}`} style={[styles.gridH, { top: `${(i * 100) / 3}%` }]} />
+        ))}
+      </View>
+
+      <View style={[styles.previewTop, { top: insets.top + space.sm }]}>
+        <Pressable
+          onPress={withTap(onBack)}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+          hitSlop={8}
+          style={({ pressed }) => [styles.circle, { backgroundColor: '#000', opacity: pressed ? 0.75 : 1 }]}>
+          <Icon name="arrow.left" size={18} color="#fff" weight="semibold" />
+        </Pressable>
+        {cover.kind === 'unsplash' ? (
+          <Pressable
+            onPress={() => Linking.openURL(cover.photo.authorUrl)}
+            accessibilityRole="link"
+            accessibilityLabel={`Photo by ${cover.photo.author} on Unsplash`}
+            style={styles.credit}>
+            <View style={styles.creditIcon}>
+              <Icon name="camera.fill" size={14} color="#000" />
+            </View>
+            <Txt variant="subhead" style={{ color: '#fff', fontWeight: '600' }} numberOfLines={1}>
+              {cover.photo.author}
+            </Txt>
+          </Pressable>
+        ) : null}
+      </View>
+
+      <View style={[styles.previewBottom, { paddingBottom: insets.bottom + space.md }]}>
+        <Button title="Continue" loading={saving} onPress={onContinue} style={{ backgroundColor: '#000' }} />
+      </View>
+    </Animated.View>
   );
 }
 
@@ -241,16 +331,10 @@ function DateCard({ label, value, minimumDate, onChange }: { label: string; valu
 }
 
 function CoverStep({
-  name,
-  seed,
-  previewUri,
   cover,
   onCover,
   unsplashEnabled,
 }: {
-  name: string;
-  seed: string;
-  previewUri: string | null;
   cover: Cover | null;
   onCover: (cover: Cover) => void;
   unsplashEnabled: boolean;
@@ -284,18 +368,6 @@ function CoverStep({
 
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: space.md, paddingTop: space.lg }}>
-      <View style={{ alignItems: 'center' }}>
-        <TripPoster
-          name={name.trim() || 'Your trip'}
-          coverUrl={previewUri}
-          coverKey={previewUri}
-          tone={cover?.kind === 'library' ? cover.tone : 'dark'}
-          seed={seed}
-          createdAt={new Date()}
-          style={{ width: 170 }}
-        />
-      </View>
-
       {/* Library */}
       <View style={[styles.card, { backgroundColor: c.surface }]}>
         <View style={[styles.circle, { backgroundColor: c.text }]}>
@@ -384,4 +456,10 @@ const styles = StyleSheet.create({
   revealRow: { flexDirection: 'row', alignItems: 'flex-start' },
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   tile: { width: 110, height: 150, borderRadius: 16 },
+  gridV: { position: 'absolute', top: 0, bottom: 0, width: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.45)' },
+  gridH: { position: 'absolute', left: 0, right: 0, height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(255,255,255,0.45)' },
+  previewTop: { position: 'absolute', left: space.lg, right: space.lg, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  previewBottom: { position: 'absolute', left: space.lg, right: space.lg, bottom: 0 },
+  credit: { flexDirection: 'row', alignItems: 'center', gap: space.sm, backgroundColor: 'rgba(0,0,0,0.75)', borderRadius: 999, paddingLeft: 4, paddingRight: space.lg, height: 44, maxWidth: 220 },
+  creditIcon: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
 });
