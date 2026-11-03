@@ -12,7 +12,8 @@ import { Avatar } from '@/ui/avatar';
 import { Txt } from '@/ui/primitives';
 import { SettingsCard, SettingsRow } from '@/ui/settings-row';
 import { SheetLayout } from '@/ui/sheet-layout';
-import { ErrorState, LoadingState } from '@/ui/states';
+import { SkeletonRows } from '@/ui/skeleton';
+import { ErrorState } from '@/ui/states';
 import { space } from '@/ui/theme';
 
 export default function TripOptions() {
@@ -21,7 +22,15 @@ export default function TripOptions() {
   const { backend } = useSession();
   const { data: trip, error, reload } = useLoad(() => backend.getTrip(id));
 
-  if (!trip) return error ? <ErrorState message={error} onRetry={reload} /> : <LoadingState />;
+  if (!trip) {
+    return error ? (
+      <ErrorState message={error} onRetry={reload} />
+    ) : (
+      <View style={{ padding: space.xl }}>
+        <SkeletonRows count={3} />
+      </View>
+    );
+  }
 
   async function attempt(fn: () => Promise<unknown>, failure: string) {
     try {

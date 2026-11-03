@@ -19,7 +19,8 @@ import { useA11yPrefs } from '@/ui/a11y';
 import { useLayout } from '@/ui/layout';
 import { HERO_OVERLAP, TripHeroScroll } from '@/ui/trip-hero';
 import { Icon, Row, Txt } from '@/ui/primitives';
-import { ErrorState, LoadingState, MessageState } from '@/ui/states';
+import { SkeletonGrid } from '@/ui/skeleton';
+import { ErrorState, MessageState } from '@/ui/states';
 import { radius, space, useTheme } from '@/ui/theme';
 import { haptic, withTap } from '@/ui/haptics';
 
@@ -116,7 +117,11 @@ export function GalleryView({ trip }: { trip: TripDetail }) {
           {!data ? (
             // The cover stays put while memories load; only this area waits.
             <View style={{ minHeight: 320 }}>
-              {error ? <ErrorState message={error} onRetry={reload} /> : <LoadingState label="Loading memories" />}
+              {error ? (
+                <ErrorState message={error} onRetry={reload} />
+              ) : (
+                <SkeletonGrid columns={galleryColumns} width={gridWidth} gap={GAP} />
+              )}
             </View>
           ) : items.length === 0 ? (
             <View style={{ minHeight: 320 }}>

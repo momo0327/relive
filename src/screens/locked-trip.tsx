@@ -5,9 +5,10 @@ import { Alert, RefreshControl, StyleSheet, View } from 'react-native';
 
 import { formatBytes, formatDuration, formatRevealMoment, plural, splitDuration, spokenDuration } from '@/lib/format';
 import type { TripDetail } from '@/lib/types';
+import { useLibraryPicker } from '@/lib/use-library-picker';
 import { useTripUploads, type QueueItem } from '@/lib/uploads';
 import { useLayout } from '@/ui/layout';
-import { FloatingButton } from '@/ui/floating-button';
+import { CAPTURE_BAR_SPACE, CaptureBar } from '@/ui/capture-bar';
 import { TripHeroScroll } from '@/ui/trip-hero';
 import { Button, Card, Icon, Row, Txt } from '@/ui/primitives';
 import { radius, space, useTheme } from '@/ui/theme';
@@ -26,6 +27,7 @@ export function LockedTripView({
   const c = useTheme();
   const { readableWidth } = useLayout();
   const { items, online, retry, discard, clearDone } = useTripUploads(trip.id);
+  const library = useLibraryPicker(trip.id);
   const [refreshing, setRefreshing] = useState(false);
   const focused = useIsFocused();
   // While details load, the home card's count stands in for the member list.
@@ -58,7 +60,7 @@ export function LockedTripView({
             }}
           />
         }
-        contentContainerStyle={{ alignItems: 'center', paddingBottom: 140 }}>
+        contentContainerStyle={{ alignItems: 'center', paddingBottom: CAPTURE_BAR_SPACE }}>
         <View style={{ width: readableWidth, gap: space.lg }}>
           <View style={[styles.panel, { backgroundColor: c.surface, borderColor: c.border }]}>
             <View style={[styles.lockBadge, { backgroundColor: c.background }]}>
@@ -84,11 +86,11 @@ export function LockedTripView({
         </View>
       </TripHeroScroll>
 
-      <FloatingButton
-        icon="camera.fill"
-        label="Capture a memory"
-        hint="Opens the camera. You can also add from your library there."
-        onPress={() => router.push(`/trips/${trip.id}/capture`)}
+      <CaptureBar
+        uploading={library.picking}
+        onUpload={library.pick}
+        onCamera={() => router.push(`/trips/${trip.id}/capture`)}
+        onInvite={() => router.push(`/trips/${trip.id}/invite`)}
       />
     </View>
   );

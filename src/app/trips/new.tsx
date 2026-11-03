@@ -93,8 +93,7 @@ export default function NewTrip() {
 
   function back() {
     haptic.tap();
-    if (step === 0) router.back();
-    else goTo(step - 1);
+    goTo(step - 1);
   }
 
   async function create() {
@@ -141,31 +140,30 @@ export default function NewTrip() {
       {/* Header: close / back, step title, page indicator */}
       <View style={{ paddingTop: insets.top + space.sm, alignItems: "center" }}>
         <View style={[styles.header, { width: readableWidth }]}>
-          <Pressable
-            onPress={back}
-            accessibilityRole="button"
-            accessibilityLabel={step === 0 ? "Close" : "Back"}
-            hitSlop={8}
-            style={({ pressed }) => [
-              styles.circle,
-              { backgroundColor: c.text, opacity: pressed ? 0.75 : 1 },
-            ]}
-          >
-            <Icon
-              name={step === 0 ? "xmark" : "arrow.left"}
-              size={18}
-              color={c.background}
-              weight="semibold"
-            />
-          </Pressable>
-          <Txt
-            variant="headline"
-            style={{ flex: 1, textAlign: "center" }}
-            accessibilityRole="header"
-          >
+          {step > 0 ? (
+            <Pressable
+              onPress={back}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              hitSlop={8}
+              style={({ pressed }) => [styles.circle, { backgroundColor: c.text, opacity: pressed ? 0.75 : 1 }]}>
+              <Icon name="arrow.left" size={18} color={c.background} weight="semibold" />
+            </Pressable>
+          ) : (
+            <View style={{ width: 44 }} />
+          )}
+          <Txt variant="headline" style={{ flex: 1, textAlign: 'center' }} accessibilityRole="header">
             {STEPS[step]}
           </Txt>
-          <View style={{ width: 44 }} />
+          {/* Close sits where the home page's + was, so it reads as "undo that tap". */}
+          <Pressable
+            onPress={withTap(() => router.back())}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+            hitSlop={8}
+            style={({ pressed }) => [styles.circle, { backgroundColor: '#FFFFFF', opacity: pressed ? 0.75 : 1 }]}>
+            <Icon name="xmark" size={18} color="#0E0F10" weight="semibold" />
+          </Pressable>
         </View>
         <View
           style={styles.dots}

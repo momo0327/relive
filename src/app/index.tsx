@@ -9,7 +9,8 @@ import { setTripPreview } from '@/lib/trip-preview';
 import type { TripSummary } from '@/lib/types';
 import { useLoad } from '@/lib/use-load';
 import { useLayout } from '@/ui/layout';
-import { ErrorState, LoadingState, MessageState } from '@/ui/states';
+import { SkeletonCards } from '@/ui/skeleton';
+import { ErrorState, MessageState } from '@/ui/states';
 import { radius, space } from '@/ui/theme';
 import { TripPoster } from '@/ui/trip-poster';
 import { haptic, withTap } from '@/ui/haptics';
@@ -61,7 +62,13 @@ export default function MyTrips() {
     return (
       <>
         {header}
-        {error ? <ErrorState message={error} onRetry={reload} /> : <LoadingState label="Loading trips" />}
+        {error ? (
+          <ErrorState message={error} onRetry={reload} />
+        ) : (
+          <ScrollView contentInsetAdjustmentBehavior="automatic" scrollEnabled={false} contentContainerStyle={{ alignItems: 'center', paddingTop: space.md }}>
+            <SkeletonCards width={contentWidth} />
+          </ScrollView>
+        )}
       </>
     );
   }

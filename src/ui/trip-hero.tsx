@@ -44,7 +44,7 @@ export function TripHeroScroll({
 }) {
   const c = useTheme();
   const insets = useSafeAreaInsets();
-  const { width, height: windowHeight, gutter, regular } = useLayout();
+  const { width, height: windowHeight, regular } = useLayout();
   // Tall enough to feel like a poster, short enough that the page content fits
   // above the floating camera button without scrolling on an iPhone.
   const height = Math.max(insets.top + 250, Math.min(width * (regular ? 0.5 : 0.82), windowHeight * 0.4, 460));
@@ -67,8 +67,8 @@ export function TripHeroScroll({
         </Link.AppleZoomTarget>
         {/* Top: keeps the back and ••• buttons readable. */}
         <LinearGradient
-          colors={['rgba(0,0,0,0.38)', 'rgba(0,0,0,0)']}
-          locations={[0, 0.3]}
+          colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0)']}
+          locations={[0, 0.45]}
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
@@ -79,22 +79,20 @@ export function TripHeroScroll({
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
-        <View style={[styles.text, { left: gutter, right: gutter, bottom: HERO_OVERLAP + space.xl }]}>
-          <Txt
-            variant="hero"
-            numberOfLines={2}
-            maxFontSizeMultiplier={1.3}
-            // Same lettering as the home card's title, smaller.
-            style={styles.title}
-            accessibilityRole="header">
-            {trip.name.toLocaleUpperCase()}
+        {/* Centred between the back and ••• header buttons. */}
+        <View style={[styles.text, { top: insets.top + 6, left: 64, right: 64 }]}>
+          <Txt numberOfLines={1} maxFontSizeMultiplier={1.3} style={styles.title} accessibilityRole="header">
+            {trip.name}
           </Txt>
-          <Txt variant="callout" style={{ color: 'rgba(255,255,255,0.88)' }}>
+          <Txt variant="caption" maxFontSizeMultiplier={1.3} style={{ color: 'rgba(255,255,255,0.85)', textAlign: 'center' }}>
             {formatTripDates(trip.startsAt, trip.unlocksAt)}
           </Txt>
-          {/* Ripple placeholder while members load, same size so nothing shifts. */}
-          <View style={{ marginTop: space.md, minHeight: 36 }}>
-            {trip.members.length ? <MembersRow members={trip.members} onInvite={onInvite} /> : <MembersRowSkeleton count={Math.min(Math.max(trip.memberCount, 2), 6)} />}
+          <View style={{ marginTop: space.sm, minHeight: 28, alignItems: 'center' }}>
+            {trip.members.length ? (
+              <MembersRow members={trip.members} onInvite={onInvite} size={28} />
+            ) : (
+              <MembersRowSkeleton count={Math.min(Math.max(trip.memberCount, 2), 6)} size={28} />
+            )}
           </View>
         </View>
       </View>
@@ -105,6 +103,6 @@ export function TripHeroScroll({
 
 const styles = StyleSheet.create({
   fill: { flex: 1, borderRadius: 0 },
-  text: { position: 'absolute', gap: 2 },
-  title: { fontFamily: 'ProtestStrike_400Regular', fontWeight: 'normal', fontSize: 42, lineHeight: 44, color: '#fff' },
+  text: { position: 'absolute', alignItems: 'center', gap: 1 },
+  title: { fontSize: 19, lineHeight: 30, fontWeight: '700', color: '#fff', textAlign: 'center' },
 });

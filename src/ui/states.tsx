@@ -1,16 +1,13 @@
 import type { SymbolViewProps } from 'expo-symbols';
-import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { Button, Icon, Txt } from './primitives';
+import { SkeletonPage } from './skeleton';
 import { space, useTheme } from './theme';
 
+/** Loading placeholder: rippling skeleton blocks instead of a spinner. */
 export function LoadingState({ label = 'Loading' }: { label?: string }) {
-  const c = useTheme();
-  return (
-    <View style={styles.center} accessible accessibilityLabel={label}>
-      <ActivityIndicator color={c.textSecondary} />
-    </View>
-  );
+  return <SkeletonPage label={label} />;
 }
 
 export function MessageState({

@@ -9,7 +9,8 @@ import { pickUnsplash, searchUnsplash, type UnsplashPhoto } from '@/lib/unsplash
 import { haptic } from '@/ui/haptics';
 import { useLayout } from '@/ui/layout';
 import { IconButton, Txt } from '@/ui/primitives';
-import { LoadingState, MessageState } from '@/ui/states';
+import { SkeletonGrid } from '@/ui/skeleton';
+import { MessageState } from '@/ui/states';
 import { radius, space, useTheme } from '@/ui/theme';
 
 const COLUMNS = 3;
@@ -66,7 +67,9 @@ export default function UnsplashSearch() {
         error ? (
           <MessageState icon="wifi.exclamationmark" title="Couldn’t load photos" message={error} />
         ) : (
-          <LoadingState label="Loading photos" />
+          <View style={{ paddingHorizontal: gutter }}>
+            <SkeletonGrid columns={COLUMNS} width={width - gutter * 2} gap={GAP} rows={4} ratios={[1.6]} />
+          </View>
         )
       ) : (
         <FlatList
