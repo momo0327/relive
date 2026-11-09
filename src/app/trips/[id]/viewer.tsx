@@ -14,9 +14,11 @@ import { friendlyError } from '@/lib/errors';
 import { useSession } from '@/lib/session';
 import type { MediaItem } from '@/lib/types';
 import { getViewerEntry, setViewerItems } from '@/lib/viewer-cache';
+import { haptic } from '@/ui/haptics';
 import { chooseReportReason } from '@/screens/report';
 import { showActions, type SheetAction } from '@/ui/action-sheet';
-import { Glass, IconButton, Txt } from '@/ui/primitives';
+import { Avatar } from '@/ui/avatar';
+import { Icon, IconButton, Txt } from '@/ui/primitives';
 import { space } from '@/ui/theme';
 
 export default function Viewer() {
@@ -25,7 +27,7 @@ export default function Viewer() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { backend } = useSession();
-  const [isOwner] = useState(() => getViewerEntry(tripId).isOwner);
+  const [{ isOwner, tripName, members }] = useState(() => getViewerEntry(tripId));
   const [items, setItems] = useState<MediaItem[]>(() => getViewerEntry(tripId).items);
   const [index, setIndex] = useState(() => Math.min(Number(indexParam ?? 0), Math.max(items.length - 1, 0)));
   const [chrome, setChrome] = useState(true);
@@ -71,6 +73,27 @@ export default function Viewer() {
       // Most likely an expired URL; fetch fresh ones and let the user retry.
       refreshUrls();
       throw error;
+    }
+  }
+
+  // Optimistic: flip the heart right away, roll back if the server refuses.
+  async function toggleLike() {
+    const target = current;
+    if (!target) return;
+    const liked = !target.liked;
+    haptic.impact();
+    const apply = (value: boolean) =>
+      setItems((prev) => {
+        const next = prev.map((m) => (m.id === target.id ? { ...m, liked: value } : m));
+        setViewerItems(tripId, next);
+        return next;
+      });
+    apply(liked);
+    try {
+      await backend.setLiked(target.id, liked);
+    } catch (e) {
+      apply(!liked);
+      Alert.alert('Couldn’t update Favourites', friendlyError(e));
     }
   }
 
@@ -128,7 +151,7 @@ export default function Viewer() {
   }
 
   function more() {
-    const actions: SheetAction[] = [];
+    const actions: SheetAction[] = [{ text: 'Save to Photos', onPress: save }];
     if (!current.isMine) {
       actions.push({
         text: 'Report…',
@@ -196,6 +219,13 @@ export default function Viewer() {
   }
 
   const date = current.takenAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+  const uploader = members.find((m) => m.userId === current.uploaderId);
+
+  function jumpTo(i: number) {
+    haptic.select();
+    setIndex(i);
+    list.current?.scrollToIndex({ index: i, animated: false });
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
@@ -222,32 +252,103 @@ export default function Viewer() {
 
       {chrome ? (
         <>
-          <View style={[styles.top, { paddingTop: insets.top + space.sm, paddingLeft: insets.left + space.lg, paddingRight: insets.right + space.lg }]} pointerEvents="box-none">
-            <IconButton icon="xmark" label="Close" glass overMedia onPress={() => router.back()} />
-            <Glass overMedia style={{ paddingHorizontal: space.lg, paddingVertical: space.sm, flexShrink: 1, alignItems: 'center' }}>
-              <Txt variant="subhead" style={{ fontWeight: '600', color: '#fff', textAlign: 'center' }} numberOfLines={1}>
-                {current.isMine ? 'You' : current.uploaderName}
+          {/* Shading so the controls read on any photo. */}
+          <LinearGradient
+            colors={['rgba(0,0,0,0.55)', 'rgba(0,0,0,0)']}
+            style={[styles.shade, { top: 0, height: insets.top + 110 }]}
+            pointerEvents="none"
+          />
+          <LinearGradient
+            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.7)']}
+            style={[styles.shade, { bottom: 0, height: insets.bottom + 220 }]}
+            pointerEvents="none"
+          />
+
+          <View
+            style={[styles.top, { paddingTop: insets.top + space.sm, paddingLeft: insets.left + space.lg, paddingRight: insets.right + space.lg }]}
+            pointerEvents="box-none">
+            <IconButton icon="arrow.left" label="Back" glass overMedia onPress={() => router.back()} />
+            <View style={{ alignItems: 'center', flexShrink: 1 }} accessible accessibilityLiveRegion="polite">
+              <Txt variant="headline" style={{ color: '#fff' }}>
+                {busy === 'save' ? 'Saving…' : busy === 'share' ? 'Preparing…' : `${index + 1} of ${items.length}`}
               </Txt>
-              <Txt variant="caption" style={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center' }} numberOfLines={1}>
-                {date}
-              </Txt>
-            </Glass>
-            <View style={{ width: 44 }} />
+              {tripName ? (
+                <Txt variant="footnote" style={{ color: 'rgba(255,255,255,0.7)' }} numberOfLines={1}>
+                  {tripName}
+                </Txt>
+              ) : null}
+            </View>
+            <IconButton icon="ellipsis" label="More actions" glass overMedia onPress={more} />
           </View>
 
-          <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, space.lg) + (current.kind === 'video' ? 64 : 0) }]} pointerEvents="box-none">
-            <Glass overMedia style={{ flexDirection: 'row', padding: space.xs, gap: space.xs }}>
-              <IconButton icon="square.and.arrow.down" label="Save to Photos" tint="#fff" onPress={save} disabled={busy !== null} />
+          <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, space.sm) }]} pointerEvents="box-none">
+            <View style={[styles.infoRow, { paddingHorizontal: insets.left + space.lg }]}>
+              <Avatar
+                id={current.uploaderId}
+                name={current.isMine ? 'You' : current.uploaderName}
+                url={uploader?.avatarUrl}
+                color={uploader?.avatarColor}
+                size={40}
+              />
+              <View style={{ flex: 1 }}>
+                <Txt variant="headline" style={{ color: '#fff' }} numberOfLines={1}>
+                  {current.isMine ? 'You' : current.uploaderName}
+                </Txt>
+                <Txt variant="footnote" style={{ color: 'rgba(255,255,255,0.75)' }} numberOfLines={1}>
+                  {date}
+                </Txt>
+              </View>
               <IconButton icon="square.and.arrow.up" label="Share" tint="#fff" onPress={share} disabled={busy !== null} />
-              <IconButton icon="ellipsis" label="More actions" tint="#fff" onPress={more} />
-            </Glass>
-            <Txt variant="caption" style={{ color: 'rgba(255,255,255,0.6)' }} accessibilityLiveRegion="polite">
-              {busy === 'save' ? 'Saving…' : busy === 'share' ? 'Preparing…' : `${index + 1} of ${items.length}`}
-            </Txt>
+              <IconButton
+                icon={current.liked ? 'heart.fill' : 'heart'}
+                label={current.liked ? 'Remove from Favourites' : 'Add to Favourites'}
+                tint="#fff"
+                onPress={toggleLike}
+              />
+            </View>
+            <Filmstrip items={items} index={index} onSelect={jumpTo} />
           </View>
         </>
       ) : null}
     </View>
+  );
+}
+
+/** Thumbnail strip under the photo; the current one is larger with a white frame. */
+function Filmstrip({ items, index, onSelect }: { items: MediaItem[]; index: number; onSelect: (i: number) => void }) {
+  const strip = useRef<FlatList<MediaItem>>(null);
+  useEffect(() => {
+    strip.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+  }, [index]);
+  return (
+    <FlatList
+      ref={strip}
+      data={items}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      keyExtractor={(m) => m.id}
+      contentContainerStyle={[styles.strip, { alignItems: 'center' }]}
+      getItemLayout={(_d, i) => ({ length: 52, offset: 52 * i, index: i })}
+      onScrollToIndexFailed={() => undefined}
+      renderItem={({ item, index: i }) => (
+        <Pressable
+          onPress={() => onSelect(i)}
+          accessibilityRole="imagebutton"
+          accessibilityLabel={`${item.kind === 'video' ? 'Video' : 'Photo'} ${i + 1} of ${items.length}`}
+          accessibilityState={{ selected: i === index }}
+          style={[styles.thumb, i === index && styles.thumbActive]}>
+          {item.sampleColors ? (
+            <LinearGradient colors={item.sampleColors} style={StyleSheet.absoluteFill} />
+          ) : item.kind === 'photo' && item.url ? (
+            <Image source={{ uri: item.url, cacheKey: `media-${item.id}` }} style={StyleSheet.absoluteFill} contentFit="cover" />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+              <Icon name="play.fill" size={16} color="#fff" />
+            </View>
+          )}
+        </Pressable>
+      )}
+    />
   );
 }
 
@@ -305,6 +406,11 @@ function ActiveVideo({ url, onError }: { url: string; onError: () => void }) {
 
 const styles = StyleSheet.create({
   top: { position: 'absolute', top: 0, left: 0, right: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.md },
-  bottom: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center', gap: space.sm },
+  bottom: { position: 'absolute', bottom: 0, left: 0, right: 0, gap: space.md },
+  shade: { position: 'absolute', left: 0, right: 0 },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  strip: { gap: 6, paddingHorizontal: space.lg },
+  thumb: { width: 46, height: 64, borderRadius: 8, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.12)' },
+  thumbActive: { width: 54, height: 72, borderWidth: 2, borderColor: '#fff', borderRadius: 10 },
 });
 

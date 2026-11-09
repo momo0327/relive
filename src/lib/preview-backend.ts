@@ -45,6 +45,7 @@ function seed(): Store {
       uploaderId: uploader.userId,
       uploaderName: uploader.displayName,
       isMine: uploader.isMe,
+      liked: false,
       url: null,
       sampleColors: palettes[i % palettes.length],
     };
@@ -185,6 +186,11 @@ export const previewBackend: Backend = {
     return 'ready';
   },
 
+  async setLiked(mediaId, liked) {
+    for (const [tripId, list] of store.media) {
+      store.media.set(tripId, list.map((m) => (m.id === mediaId ? { ...m, liked } : m)));
+    }
+  },
   async deleteMedia(mediaId) {
     for (const [tripId, items] of store.media) {
       store.media.set(tripId, items.filter((m) => m.id !== mediaId));

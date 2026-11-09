@@ -107,6 +107,10 @@ function AppStack() {
           <Stack.Screen name="trips/[id]/options" options={{ ...sheet, title: 'Trip Options', sheetAllowedDetents: [0.7, 1] }} />
           <Stack.Screen name="trips/[id]/saved" options={{ ...sheet, headerShown: false, sheetAllowedDetents: 'fitToContents' }} />
           <Stack.Screen name="trips/[id]/capture" options={{ presentation: 'fullScreenModal', headerShown: false, animation: 'fade' }} />
+          <Stack.Screen
+            name="trips/[id]/recap"
+            options={{ presentation: 'fullScreenModal', headerShown: false, animation: 'fade', contentStyle: { backgroundColor: '#000' } }}
+          />
           <Stack.Screen name="trips/[id]/viewer" options={{ presentation: 'fullScreenModal', headerShown: false, animation: 'fade', contentStyle: { backgroundColor: '#000' } }} />
           <Stack.Screen name="account" options={{ title: 'Settings' }} />
           <Stack.Screen name="profile" options={{ ...sheet, title: 'Edit Profile', sheetAllowedDetents: [1] }} />

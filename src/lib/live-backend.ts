@@ -183,7 +183,7 @@ export const liveBackend: Backend = {
     const rows = await rpc<{
       id: string; storage_path: string; kind: 'photo' | 'video'; duration_ms: number | null;
       width: number | null; height: number | null; captured_at: string | null; created_at: string;
-      uploader_id: string; uploader_name: string; is_mine: boolean;
+      uploader_id: string; uploader_name: string; is_mine: boolean; liked?: boolean;
     }[]>('list_trip_media', { p_trip: tripId });
     if (!rows.length) return [];
     // Signing goes through the storage read policy, which re-checks the reveal.
@@ -201,6 +201,7 @@ export const liveBackend: Backend = {
       uploaderId: r.uploader_id,
       uploaderName: r.uploader_name,
       isMine: r.is_mine,
+      liked: !!r.liked,
       url: urls.get(r.storage_path) ?? null,
     }));
   },
@@ -274,6 +275,8 @@ export const liveBackend: Backend = {
   },
 
   deleteMedia: (mediaId) => rpc('delete_media', { p_id: mediaId }),
+
+  setLiked: (mediaId, liked) => rpc('set_media_like', { p_media: mediaId, p_liked: liked }),
   leaveTrip: (tripId) => rpc('leave_trip', { p_trip: tripId }),
   removeMember: (tripId, userId) => rpc('remove_member', { p_trip: tripId, p_user: userId }),
   deleteTrip: (tripId) => rpc('delete_trip', { p_trip: tripId }),

@@ -34,6 +34,8 @@ export interface Backend {
   /** `attempt` starts at 1; later attempts may use a more conservative transport. */
   uploadMedia(media: NewMedia, onProgress: UploadProgress, signal: AbortSignal, attempt: number): Promise<UploadOutcome>;
   deleteMedia(mediaId: string): Promise<void>;
+  /** Add to / remove from the caller's Favourites (revealed memories only). */
+  setLiked(mediaId: string, liked: boolean): Promise<void>;
   leaveTrip(tripId: string): Promise<void>;
   removeMember(tripId: string, userId: string): Promise<void>;
   deleteTrip(tripId: string): Promise<void>;

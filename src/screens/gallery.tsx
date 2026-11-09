@@ -6,10 +6,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import * as VideoThumbnails from 'expo-video-thumbnails';
 import { useEffect, useMemo, useState, type ComponentType } from 'react';
-import { ActivityIndicator, Platform, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, PlatformColor, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatDuration, plural } from '@/lib/format';
+import { markRecapSeen, recapSeen } from '@/lib/recap';
 import { useSession } from '@/lib/session';
 import { useExportMemories, type ExportProgress } from '@/lib/use-export-memories';
 import type { MediaItem, TripDetail } from '@/lib/types';
@@ -24,7 +25,7 @@ import { ErrorState, MessageState } from '@/ui/states';
 import { radius, space, useTheme } from '@/ui/theme';
 import { haptic, withTap } from '@/ui/haptics';
 
-type Filter = 'all' | 'photo' | 'video';
+type Filter = 'all' | 'photo' | 'video' | 'liked';
 const GAP = 10;
 
 /** Tile aspect (height / width), clamped so very tall or wide shots stay tidy. */
@@ -45,7 +46,7 @@ function masonry(items: MediaItem[], columns: number) {
   return cols;
 }
 
-export function GalleryView({ trip }: { trip: TripDetail }) {
+export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuckChange?: (stuck: boolean) => void }) {
   const router = useRouter();
   const c = useTheme();
   const { backend } = useSession();
@@ -53,17 +54,31 @@ export function GalleryView({ trip }: { trip: TripDetail }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [refreshing, setRefreshing] = useState(false);
   const { data, error, reload } = useLoad(() => backend.listMedia(trip.id));
+
+  // First time this device opens the revealed trip, play its recap.
+  useEffect(() => {
+    if (data && data.length > 0 && !recapSeen(trip.id)) {
+      markRecapSeen(trip.id);
+      router.push(`/trips/${trip.id}/recap`);
+    }
+  }, [data, trip.id, router]);
   // Selection mode for "Choose memories…" export; null when not selecting.
   const [selected, setSelected] = useState<Set<string> | null>(null);
+  // Filter's offset inside the gallery panel (below the recap card).
+  const [filterY, setFilterY] = useState(0);
   const exporter = useExportMemories(trip.id);
 
-  const items = useMemo(() => (data ?? []).filter((m) => filter === 'all' || m.kind === filter), [data, filter]);
+  const items = useMemo(
+    () => (data ?? []).filter((m) => filter === 'all' || (filter === 'liked' ? m.liked : m.kind === filter)),
+    [data, filter],
+  );
   const columns = useMemo(() => masonry(items, galleryColumns), [items, galleryColumns]);
   const counts = useMemo(
     () => ({
       all: data?.length ?? 0,
       photo: data?.filter((m) => m.kind === 'photo').length ?? 0,
       video: data?.filter((m) => m.kind === 'video').length ?? 0,
+      liked: data?.filter((m) => m.liked).length ?? 0,
     }),
     [data],
   );
@@ -73,7 +88,7 @@ export function GalleryView({ trip }: { trip: TripDetail }) {
   const columnWidth = (gridWidth - GAP * (galleryColumns - 1)) / galleryColumns;
 
   function open(index: number) {
-    setViewerItems(trip.id, items, trip.isOwner);
+    setViewerItems(trip.id, items, trip.isOwner, { tripName: trip.name, members: trip.members });
     router.push(`/trips/${trip.id}/viewer?index=${index}`);
   }
 
@@ -98,6 +113,16 @@ export function GalleryView({ trip }: { trip: TripDetail }) {
     <View style={{ flex: 1 }}>
       <TripHeroScroll
         trip={trip}
+        // The filter stays pinned under the header while scrolling the grid.
+        stickyHeader={
+          counts.all > 0 ? (
+            <View style={{ width: gridWidth }}>
+              <FilterBar value={filter} onChange={setFilter} />
+            </View>
+          ) : undefined
+        }
+        stickyOffset={space.lg + filterY}
+        onStuckChange={onStuckChange}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -112,7 +137,18 @@ export function GalleryView({ trip }: { trip: TripDetail }) {
         {/* Rounded panel that slides over the bottom of the banner. */}
         <View style={[styles.panel, { width, backgroundColor: c.background }]}>
         <View style={{ width: gridWidth, gap: space.lg, alignSelf: 'center' }}>
-          {counts.all > 0 ? <FilterBar value={filter} onChange={setFilter} /> : null}
+          {counts.all > 0 ? (
+            <>
+              <RecapCard
+                total={counts.all}
+                onPress={() => router.push(`/trips/${trip.id}/recap`)}
+              />
+              {/* Measured so the pinned copy appears exactly when this one reaches the header. */}
+              <View onLayout={(e) => setFilterY(e.nativeEvent.layout.y)}>
+                <FilterBar value={filter} onChange={setFilter} />
+              </View>
+            </>
+          ) : null}
 
           {!data ? (
             // The cover stays put while memories load; only this area waits.
@@ -127,8 +163,14 @@ export function GalleryView({ trip }: { trip: TripDetail }) {
             <View style={{ minHeight: 320 }}>
               <MessageState
                 icon="photo.on.rectangle.angled"
-                title={counts.all === 0 ? 'No memories in this trip' : 'Nothing here'}
-                message={counts.all === 0 ? 'Nobody added photos or videos before the trip ended.' : 'Try another filter.'}
+                title={counts.all === 0 ? 'No memories in this trip' : filter === 'liked' ? 'No favourites yet' : 'Nothing here'}
+                message={
+                  counts.all === 0
+                    ? 'Nobody added photos or videos before the trip ended.'
+                    : filter === 'liked'
+                      ? 'Tap the heart on a photo or video to add it here.'
+                      : 'Try another filter.'
+                }
               />
             </View>
           ) : (
@@ -213,6 +255,7 @@ function ExportBar({
   onCancel: () => void;
   onSave: () => void;
 }) {
+  const c = useTheme();
   const insets = useSafeAreaInsets();
   const { gutter } = useLayout();
   const busy = progress !== null;
@@ -271,19 +314,16 @@ function ExportBar({
     );
   } else {
     content = (
-      <Pressable onPress={withTap(onExport)} accessibilityRole="button" accessibilityLabel="Export memories" style={[press({ pressed: false }), { alignSelf: 'center' }]}>
-        {({ pressed }) => (
-          <View style={press({ pressed })}>
-            <GlassPill>
-              <Row gap={space.sm} style={styles.exportInner}>
-                <Icon name="square.and.arrow.down.fill" size={17} color={dark} weight="semibold" />
-                <Txt variant="headline" style={{ color: dark }}>
-                  Export memories
-                </Txt>
-              </Row>
-            </GlassPill>
-          </View>
-        )}
+      // Round button bottom-right, same size and style as the locked page's camera button.
+      <Pressable
+        onPress={withTap(onExport)}
+        accessibilityRole="button"
+        accessibilityLabel="Export memories"
+        style={({ pressed }) => [
+          styles.exportRoundButton,
+          { right: gutter, backgroundColor: c.text, transform: [{ scale: pressed ? 0.95 : 1 }] },
+        ]}>
+        <Icon name="square.and.arrow.down" size={24} color={c.background} />
       </Pressable>
     );
   }
@@ -298,22 +338,72 @@ function ExportBar({
 // The package's mixin class typing doesn't satisfy React 19's JSX types; the runtime component is fine.
 const SegmentedControl = SegmentedControlClass as unknown as ComponentType<SegmentedControlProps>;
 
-const filters: Filter[] = ['all', 'photo', 'video'];
-
-/** Native UISegmentedControl, so iOS 26 renders it with the system Liquid Glass style. */
-function FilterBar({ value, onChange }: { value: Filter; onChange: (f: Filter) => void }) {
+/** Entry point to the trip recap (also plays once automatically after the reveal). */
+function RecapCard({ total, onPress }: { total: number; onPress: () => void }) {
   const c = useTheme();
   return (
-    <SegmentedControl
-      values={['All', 'Photos', 'Videos']}
-      selectedIndex={filters.indexOf(value)}
-      onChange={(e) => {
-        haptic.select();
-        onChange(filters[e.nativeEvent.selectedSegmentIndex] ?? 'all');
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Watch trip recap"
+      onPress={() => {
+        haptic.tap();
+        onPress();
       }}
-      appearance={c.scheme}
-      accessibilityLabel="Filter memories"
-    />
+      style={({ pressed }) => [styles.recap, { backgroundColor: c.surface, opacity: pressed ? 0.8 : 1 }]}>
+      <Icon name="play.circle.fill" size={40} color={c.text} />
+      <View style={{ flex: 1 }}>
+        <Txt variant="headline">Trip recap</Txt>
+        <Txt variant="footnote" tone="secondary" numberOfLines={1}>
+          {plural(total, 'memory', 'memories')}
+        </Txt>
+      </View>
+    </Pressable>
+  );
+}
+
+const segments: Filter[] = ['all', 'photo', 'video'];
+const SEGMENT_TRACK = Platform.OS === 'ios' ? PlatformColor('tertiarySystemFill') : 'rgba(118,118,128,0.24)';
+// iOS draws the selected segment as systemGray2 in dark mode and white in light mode.
+const SEGMENT_SELECTED_DARK = Platform.OS === 'ios' ? PlatformColor('systemGray2') : '#636366';
+
+/**
+ * Native UISegmentedControl (Liquid Glass on iOS 26) for All / Photos / Videos,
+ * plus a round heart button beside it for Favourites.
+ */
+function FilterBar({ value, onChange }: { value: Filter; onChange: (f: Filter) => void }) {
+  const c = useTheme();
+  const favourites = value === 'liked';
+  return (
+    <View style={styles.filterRow}>
+      <View style={{ flex: 1 }}>
+        <SegmentedControl
+          values={['All', 'Photos', 'Videos']}
+          // No segment highlighted while Favourites is on.
+          selectedIndex={favourites ? -1 : segments.indexOf(value)}
+          onChange={(e) => {
+            haptic.select();
+            onChange(segments[e.nativeEvent.selectedSegmentIndex] ?? 'all');
+          }}
+          appearance={c.scheme}
+          accessibilityLabel="Filter memories"
+        />
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Favourites"
+        accessibilityState={{ selected: favourites }}
+        onPress={() => {
+          haptic.select();
+          onChange(favourites ? 'all' : 'liked');
+        }}
+        // Off: the segmented control's track colour. On: its selected-segment colour.
+        style={({ pressed }) => [
+          styles.heart,
+          { backgroundColor: favourites ? (c.scheme === 'dark' ? SEGMENT_SELECTED_DARK : '#FFFFFF') : SEGMENT_TRACK, opacity: pressed ? 0.7 : 1 },
+        ]}>
+        <Icon name={favourites ? 'heart.fill' : 'heart'} size={17} color={c.text} />
+      </Pressable>
+    </View>
   );
 }
 
@@ -394,6 +484,9 @@ function Tile({
 }
 
 const styles = StyleSheet.create({
+  recap: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, borderRadius: radius.lg },
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
+  heart: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   panel: { borderTopLeftRadius: HERO_OVERLAP, borderTopRightRadius: HERO_OVERLAP, paddingTop: space.lg },
   check: {
     position: 'absolute',
@@ -410,6 +503,8 @@ const styles = StyleSheet.create({
   checkOn: { backgroundColor: '#0A84FF' },
   checkOff: { backgroundColor: 'rgba(0,0,0,0.25)' },
   exportWrap: { position: 'absolute', left: 0, right: 0 },
+  // Same size as the ✕ / Save buttons shown in selection mode.
+  exportRoundButton: { position: 'absolute', bottom: 0, width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
   exportRound: { width: 50, height: 50, alignItems: 'center', justifyContent: 'center' },
   exportCompact: { paddingHorizontal: space.lg, minHeight: 50 },
   exportPill: { borderRadius: radius.pill, overflow: 'hidden' },

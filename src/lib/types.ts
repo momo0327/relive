@@ -48,6 +48,8 @@ export type MediaItem = {
   uploaderId: string;
   uploaderName: string;
   isMine: boolean;
+  /** The current user added this to their Favourites. */
+  liked: boolean;
   /** Short-lived signed URL, minted only after the server confirms the reveal. */
   url: string | null;
   /** Preview mode only: placeholder gradient instead of real media. */

@@ -200,6 +200,10 @@ await test('objects that fail validation are rejected and queued for purge', asy
   assert.equal(queued.rows.length, 1);
 });
 
+await test('memories cannot be liked before the reveal', async () => {
+  await rejects(as('bob', `select public.set_media_like($1, true)`, [photoId]), /not_found/);
+});
+
 await test('changing the reveal time is not possible from the client', async () => {
   await rejects(as('alice', `update public.trips set unlocks_at = now() where id = $1`, [tripId]), /permission denied/);
 });
@@ -215,6 +219,19 @@ await test('after reveal, members (and only members) can read media', async () =
   }
   assert.equal((await as('carol', `select * from storage.objects where bucket_id = 'trip-media'`)).rows.length, 0);
   assert.equal((await as('carol', `select * from public.list_trip_media($1)`, [tripId])).rows.length, 0);
+});
+
+await test('after reveal, members can like memories; likes are private', async () => {
+  await as('bob', `select public.set_media_like($1, true)`, [photoId]);
+  const bobList = (await as('bob', `select id, liked from public.list_trip_media($1)`, [tripId])).rows;
+  assert.equal(bobList[0].liked, true, 'bob sees his like');
+  const aliceList = (await as('alice', `select id, liked from public.list_trip_media($1)`, [tripId])).rows;
+  assert.equal(aliceList[0].liked, false, "alice doesn't see bob's like");
+  assert.equal((await as('alice', `select * from public.media_likes`)).rows.length, 0, 'like rows are private');
+  await rejects(as('carol', `select public.set_media_like($1, true)`, [photoId]), /not_found/);
+  await rejects(as('bob', `insert into public.media_likes (user_id, media_id) values ($1, $2)`, [users.bob, photoId]), /permission denied/);
+  await as('bob', `select public.set_media_like($1, false)`, [photoId]);
+  assert.equal((await as('bob', `select liked from public.list_trip_media($1)`, [tripId])).rows[0].liked, false, 'unlike');
 });
 
 await test('uploads and invites close at reveal', async () => {

@@ -33,9 +33,8 @@ export function CaptureBar({
       style={[styles.bar, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, space.lg) }]}
       pointerEvents="box-none">
       <Glass interactive style={styles.pill}>
-        <PillButton icon="photo.fill" label="Upload" busy={uploading} onPress={onUpload} />
-        <View style={[styles.divider, { backgroundColor: c.border }]} />
-        <PillButton icon="link" label="Invite" onPress={onInvite} />
+        <PillButton icon="photo.fill.on.rectangle.fill" label="Upload" busy={uploading} onPress={onUpload} />
+        <PillButton icon="person.fill.badge.plus" label="Invite" onPress={onInvite} />
       </Glass>
       <Pressable
         accessibilityRole="button"
@@ -52,6 +51,7 @@ export function CaptureBar({
   );
 }
 
+/** Icon button inside the pill, with a rounded highlight while pressed (like Photos' bottom bar). */
 function PillButton({
   icon,
   label,
@@ -74,8 +74,8 @@ function PillButton({
         haptic.tap();
         onPress();
       }}
-      style={({ pressed }) => [styles.pillButton, { opacity: pressed ? 0.6 : 1 }]}>
-      {busy ? <ActivityIndicator color={c.text} /> : <Icon name={icon} size={24} color={c.text} />}
+      style={({ pressed }) => [styles.pillButton, pressed && { backgroundColor: c.border }]}>
+      {busy ? <ActivityIndicator color={c.text} /> : <Icon name={icon} size={26} color={c.text} />}
     </Pressable>
   );
 }
@@ -91,8 +91,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: space.md,
   },
-  pill: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, height: 68, paddingHorizontal: space.xs },
-  pillButton: { alignItems: 'center', justifyContent: 'center', width: 70, height: 68 },
-  divider: { width: StyleSheet.hairlineWidth, height: 24 },
+  pill: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, height: 68, padding: 4, gap: 2 },
+  pillButton: { alignItems: 'center', justifyContent: 'center', width: 76, height: 60, borderRadius: 30 },
   camera: { alignItems: 'center', justifyContent: 'center', width: 68, height: 68, borderRadius: 34 },
 });
