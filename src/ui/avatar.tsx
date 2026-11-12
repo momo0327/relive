@@ -17,6 +17,11 @@ export function initials(name: string) {
   return ((parts[0]?.[0] ?? '?') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase();
 }
 
+/** Storage path of a signed URL (without the expiring token), for image caching. */
+export function stableKey(url: string) {
+  return url.split('?')[0];
+}
+
 /** Profile photo if there is one, otherwise initials on the chosen (or derived) colour. */
 export function Avatar({
   id,
@@ -41,7 +46,16 @@ export function Avatar({
         style,
       ]}>
       {url ? (
-        <Image source={{ uri: url }} style={StyleSheet.absoluteFill} contentFit="cover" transition={150} accessibilityIgnoresInvertColors />
+        <Image
+          // Signed URLs change on every fetch; key the cache by the file itself so
+          // a photo already shown appears instantly instead of re-downloading.
+          source={{ uri: url, cacheKey: stableKey(url) }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          transition={0}
+          cachePolicy="memory-disk"
+          accessibilityIgnoresInvertColors
+        />
       ) : (
         <Txt
           maxFontSizeMultiplier={1.2}

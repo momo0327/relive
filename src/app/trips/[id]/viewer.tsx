@@ -6,8 +6,20 @@ import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, FlatList, Linking, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  Alert,
+  Animated,
+  FlatList,
+  PanResponder,
+  Linking,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+  type ScrollViewInstance,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { friendlyError } from '@/lib/errors';
@@ -31,6 +43,38 @@ export default function Viewer() {
   const { backend } = useSession();
   const [{ isOwner, tripName, members }] = useState(() => getViewerEntry(tripId));
   const [videoPlayer, setVideoPlayer] = useState<VideoPlayer | null>(null);
+
+  // Pull down to close (like Photos): the photo follows the finger, shrinks a
+  // little and the backdrop fades; past a threshold (or a quick flick) it closes.
+  const [dragY] = useState(() => new Animated.Value(0));
+  const [pulling, setPulling] = useState(false);
+  const [closing] = useState(() => new Animated.Value(1));
+  // The backdrop fades all the way out, revealing the gallery underneath.
+  const backdrop = dragY.interpolate({ inputRange: [0, 260], outputRange: [1, 0], extrapolate: 'clamp' });
+  const dragScale = dragY.interpolate({ inputRange: [0, 400], outputRange: [1, 0.7], extrapolate: 'clamp' });
+  const [pullToClose] = useState(() =>
+    PanResponder.create({
+      // Only clear downward drags; sideways swipes stay with the photo list.
+      onMoveShouldSetPanResponder: (_e, g) => g.dy > 12 && g.dy > Math.abs(g.dx) * 1.6,
+      onPanResponderGrant: () => setPulling(true),
+      onPanResponderMove: (_e, g) => dragY.setValue(Math.max(0, g.dy)),
+      onPanResponderRelease: (_e, g) => {
+        if (g.dy > 140 || g.vy > 1.2) {
+          haptic.tap();
+          // Continue the motion: the photo shrinks away into the gallery behind it.
+          Animated.parallel([
+            Animated.timing(dragY, { toValue: 700, duration: 220, useNativeDriver: true }),
+            Animated.timing(closing, { toValue: 0, duration: 220, useNativeDriver: true }),
+          ]).start(() => router.back());
+        } else {
+          Animated.spring(dragY, { toValue: 0, useNativeDriver: true, bounciness: 6 }).start(() => setPulling(false));
+        }
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(dragY, { toValue: 0, useNativeDriver: true }).start(() => setPulling(false));
+      },
+    }),
+  );
   const [items, setItems] = useState<MediaItem[]>(() => getViewerEntry(tripId).items);
   const [index, setIndex] = useState(() => Math.min(Number(indexParam ?? 0), Math.max(items.length - 1, 0)));
   // Video players start only once the photo has settled for a moment, so
@@ -238,29 +282,35 @@ export default function Viewer() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#000' }}>
-      <FlatList
-        ref={list}
-        data={items}
-        horizontal
-        pagingEnabled
-        showsHorizontalScrollIndicator={false}
-        initialScrollIndex={index}
-        getItemLayout={(_d, i) => ({ length: width, offset: width * i, index: i })}
-        keyExtractor={(m) => m.id}
-        onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
-        renderItem={({ item, index: i }) => (
-          <View style={{ width, height }}>
-            {item.kind === 'video' ? (
-              <VideoPage item={item} active={i === playIndex} onError={refreshUrls} onPlayer={setVideoPlayer} onTap={() => setChrome((v) => !v)} />
-            ) : (
-              <PhotoPage item={item} onTap={() => setChrome((v) => !v)} onError={refreshUrls} />
-            )}
-          </View>
-        )}
-      />
+    <View style={{ flex: 1 }}>
+      {/* Black backdrop fades as you pull the photo down. */}
+      <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: backdrop }]} />
+      <Animated.View
+        style={{ flex: 1, opacity: closing, transform: [{ translateY: dragY }, { scale: dragScale }] }}
+        {...pullToClose.panHandlers}>
+        <FlatList
+          ref={list}
+          data={items}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          initialScrollIndex={index}
+          getItemLayout={(_d, i) => ({ length: width, offset: width * i, index: i })}
+          keyExtractor={(m) => m.id}
+          onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
+          renderItem={({ item, index: i }) => (
+            <View style={{ width, height }}>
+              {item.kind === 'video' ? (
+                <VideoPage item={item} active={i === playIndex} onError={refreshUrls} onPlayer={setVideoPlayer} onTap={() => setChrome((v) => !v)} />
+              ) : (
+                <PhotoPage item={item} onTap={() => setChrome((v) => !v)} onError={refreshUrls} />
+              )}
+            </View>
+          )}
+        />
+      </Animated.View>
 
-      {chrome ? (
+      {chrome && !pulling ? (
         <>
           {/* Shading so the controls read on any photo. */}
           <LinearGradient
@@ -340,7 +390,7 @@ const THUMB_STEP = THUMB_W + THUMB_GAP;
  */
 function Filmstrip({ items, index, onSelect }: { items: MediaItem[]; index: number; onSelect: (i: number) => void }) {
   const { width } = useWindowDimensions();
-  const strip = useRef<FlatList<MediaItem>>(null);
+  const strip = useRef<ScrollViewInstance>(null);
   const dragging = useRef(false);
   const shown = useRef(index);
   const side = (width - THUMB_W) / 2;
@@ -351,9 +401,22 @@ function Filmstrip({ items, index, onSelect }: { items: MediaItem[]; index: numb
   useEffect(() => {
     if (dragging.current) return;
     shown.current = index;
-    strip.current?.scrollToOffset({ offset: index * THUMB_STEP, animated: !firstRun.current });
+    strip.current?.scrollTo({ x: index * THUMB_STEP, animated: !firstRun.current });
     firstRun.current = false;
   }, [index]);
+
+  const tapRef = useRef<(i: number) => void>(() => undefined);
+  useLayoutEffect(() => {
+    tapRef.current = (i) => {
+      if (i !== shown.current) {
+        shown.current = i;
+        haptic.select();
+        onSelect(i);
+      }
+      strip.current?.scrollTo({ x: i * THUMB_STEP, animated: true });
+    };
+  });
+  const tapThumb = useCallback((i: number) => tapRef.current(i), []);
 
   function centred(x: number) {
     return Math.max(0, Math.min(items.length - 1, Math.round(x / THUMB_STEP)));
@@ -361,29 +424,24 @@ function Filmstrip({ items, index, onSelect }: { items: MediaItem[]; index: numb
 
   function settle(x: number) {
     const i = centred(x);
-    if (Math.abs(x - i * THUMB_STEP) > 0.5) strip.current?.scrollToOffset({ offset: i * THUMB_STEP, animated: true });
+    if (Math.abs(x - i * THUMB_STEP) > 0.5) strip.current?.scrollTo({ x: i * THUMB_STEP, animated: true });
   }
 
   return (
     <View style={{ height: 76, justifyContent: 'center' }}>
-      <FlatList
+      {/* Plain ScrollView with every thumbnail mounted (they're tiny), so none
+          blank out while flicking fast; each thumbnail is memoised. */}
+      <ScrollView
         ref={strip}
-        data={items}
         horizontal
         showsHorizontalScrollIndicator={false}
-        keyExtractor={(m) => m.id}
-        // Room on both sides so the first and last can sit in the frame.
-        contentContainerStyle={{ paddingHorizontal: side, alignItems: 'center' }}
-        ItemSeparatorComponent={() => <View style={{ width: THUMB_GAP }} />}
-        getItemLayout={(_d, i) => ({ length: THUMB_STEP, offset: THUMB_STEP * i, index: i })}
+        contentContainerStyle={{ paddingHorizontal: side, alignItems: 'center', gap: THUMB_GAP }}
         // Start already centred on the current photo (e.g. when the controls reappear).
         contentOffset={{ x: index * THUMB_STEP, y: 0 }}
         // Free momentum (glides and slows down naturally); it settles on the
         // nearest thumbnail once it comes to rest.
         decelerationRate="normal"
         scrollEventThrottle={16}
-        initialNumToRender={20}
-        windowSize={9}
         onScrollBeginDrag={() => {
           dragging.current = true;
         }}
@@ -409,43 +467,53 @@ function Filmstrip({ items, index, onSelect }: { items: MediaItem[]; index: numb
           playTick();
           onSelect(i);
         }}
-        renderItem={({ item, index: i }) => (
-          <Pressable
-            onPress={() => {
-              if (i !== shown.current) {
-                shown.current = i;
-                haptic.select();
-                onSelect(i);
-              }
-              strip.current?.scrollToOffset({ offset: i * THUMB_STEP, animated: true });
-            }}
-            accessibilityRole="imagebutton"
-            accessibilityLabel={`${item.kind === 'video' ? 'Video' : 'Photo'} ${i + 1} of ${items.length}`}
-            accessibilityState={{ selected: i === index }}
-            style={styles.thumb}>
-            {item.sampleColors ? (
-              <LinearGradient colors={item.sampleColors} style={StyleSheet.absoluteFill} />
-            ) : item.thumbUrl || (item.kind === 'photo' && item.url) ? (
-              <Image
-                source={{ uri: item.thumbUrl ?? item.url!, cacheKey: item.thumbUrl ? `thumb-${item.id}` : `media-${item.id}` }}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-                transition={0}
-                cachePolicy="disk"
-              />
-            ) : (
-              <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
-                <Icon name="play.fill" size={16} color="#fff" />
-              </View>
-            )}
-          </Pressable>
-        )}
-      />
+>
+        {items.map((item, i) => (
+          <FilmThumb key={item.id} item={item} index={i} total={items.length} onPress={tapThumb} />
+        ))}
+      </ScrollView>
       {/* Fixed frame in the centre; the strip slides beneath it. */}
       <View pointerEvents="none" style={[styles.frame, { left: (width - THUMB_W) / 2 - 4 }]} />
     </View>
   );
 }
+
+const FilmThumb = memo(function FilmThumb({
+  item,
+  index,
+  total,
+  onPress,
+}: {
+  item: MediaItem;
+  index: number;
+  total: number;
+  onPress: (i: number) => void;
+}) {
+  return (
+    <Pressable
+      onPress={() => onPress(index)}
+      accessibilityRole="imagebutton"
+      accessibilityLabel={`${item.kind === 'video' ? 'Video' : 'Photo'} ${index + 1} of ${total}`}
+      style={styles.thumb}>
+      {item.sampleColors ? (
+        <LinearGradient colors={item.sampleColors} style={StyleSheet.absoluteFill} />
+      ) : item.thumbUrl || (item.kind === 'photo' && item.url) ? (
+        <Image
+          source={{ uri: item.thumbUrl ?? item.url!, cacheKey: item.thumbUrl ? `thumb-${item.id}` : `media-${item.id}` }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          transition={0}
+          cachePolicy="memory-disk"
+          priority="high"
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center' }]}>
+          <Icon name="play.fill" size={16} color="#fff" />
+        </View>
+      )}
+    </Pressable>
+  );
+});
 
 function PhotoPage({ item, onTap, onError }: { item: MediaItem; onTap: () => void; onError: () => void }) {
   if (item.sampleColors) {

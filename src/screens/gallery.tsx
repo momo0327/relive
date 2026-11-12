@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useState, type ComponentType } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
   ActivityIndicator,
   Platform,
@@ -120,6 +120,21 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
     Haptics.selectionAsync().catch(() => undefined);
   }
 
+  // One stable handler for every tile, so scrolling only re-renders the few
+  // tiles whose visibility actually changed (tiles are memoised).
+  const tileAction = useRef<(id: string, index: number) => void>(() => undefined);
+  useLayoutEffect(() => {
+    tileAction.current = (id, index) => {
+      if (selected) toggle(id);
+      else {
+        haptic.tap();
+        open(index);
+      }
+    };
+  });
+  const onTilePress = useCallback((id: string, index: number) => tileAction.current(id, index), []);
+
+
   async function saveSelected() {
     if (!selected?.size) return;
     const ok = await exporter.run(selected);
@@ -215,13 +230,8 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
                             width={columnWidth}
                             visible={near}
                             selected={selected ? selected.has(item.id) : undefined}
-                            onPress={() => {
-                              if (selected) toggle(item.id);
-                              else {
-                                haptic.tap();
-                                open(index);
-                              }
-                            }}
+                            index={index}
+                            onPress={onTilePress}
                           />
                         );
                       })}
@@ -449,20 +459,22 @@ function FilterBar({ value, onChange }: { value: Filter; onChange: (f: Filter) =
   );
 }
 
-function Tile({
+const Tile = memo(function Tile({
   item,
   width,
   visible,
   selected,
+  index,
   onPress,
 }: {
   item: MediaItem;
   width: number;
+  index: number;
   /** Near the screen: load the image (once loaded, it stays). */
   visible: boolean;
   /** undefined = not selecting; otherwise whether this tile is chosen. */
   selected?: boolean;
-  onPress: () => void;
+  onPress: (id: string, index: number) => void;
 }) {
   const c = useTheme();
   // Once a tile has been near the screen, keep its image mounted (no flicker on scroll-back).
@@ -479,7 +491,7 @@ function Tile({
       accessibilityRole={selected === undefined ? 'imagebutton' : 'checkbox'}
       accessibilityState={selected === undefined ? undefined : { checked: selected }}
       accessibilityLabel={label}
-      onPress={onPress}
+      onPress={() => onPress(item.id, index)}
       style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
       <View
         style={[
@@ -524,7 +536,7 @@ function Tile({
       </View>
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   recap: {

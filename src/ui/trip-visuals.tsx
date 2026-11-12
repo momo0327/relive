@@ -51,6 +51,7 @@ export function Cover({
           source={{ uri, cacheKey: cacheKey ?? undefined }}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
+          cachePolicy="memory-disk"
           transition={instant ? 0 : 200}
           onLoad={(e) => {
             const { width, height } = e.source;

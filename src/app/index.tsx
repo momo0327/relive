@@ -19,7 +19,7 @@ export default function MyTrips() {
   const router = useRouter();
   const { backend, pendingInvite, setPendingInvite, mode } = useSession();
   const { gutter, contentWidth, tripColumns } = useLayout();
-  const { data, error, refreshing, reload } = useLoad(() => backend.listTrips());
+  const { data, error, refreshing, reload } = useLoad(() => backend.listTrips(), { refocusAfterMs: 60_000 });
 
   // Keep this device's reminders and reveal alerts in step with the trip list.
   useEffect(() => {

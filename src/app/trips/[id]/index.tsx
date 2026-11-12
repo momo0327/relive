@@ -20,7 +20,7 @@ export default function TripScreen() {
   const c = useTheme();
   // Once the gallery filter is pinned, the header sits on the page colour instead of the photo.
   const [stuck, setStuck] = useState(false);
-  const { data: loaded, error, reload } = useLoad(() => backend.getTrip(id));
+  const { data: loaded, error, reload } = useLoad(() => backend.getTrip(id), { refocusAfterMs: 60_000 });
   // Until the details arrive, draw from the home card's data so the zoom
   // transition lands on the cover, not a loading screen.
   const [preview] = useState(() => getTripPreview(id));

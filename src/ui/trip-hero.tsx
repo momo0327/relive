@@ -84,8 +84,8 @@ export function TripHeroScroll({
   const lastReported = useSharedValue(-1000);
   const onScroll = useAnimatedScrollHandler((e) => {
     y.value = e.contentOffset.y;
-    // Report every ~120 pt of movement; enough for windowing, cheap for JS.
-    if (onScrollY && Math.abs(e.contentOffset.y - lastReported.value) > 120) {
+    // Report every ~250 pt of movement; enough for windowing, cheap for JS.
+    if (onScrollY && Math.abs(e.contentOffset.y - lastReported.value) > 250) {
       lastReported.value = e.contentOffset.y;
       scheduleOnRN(onScrollY, e.contentOffset.y);
     }

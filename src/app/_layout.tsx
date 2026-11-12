@@ -111,7 +111,11 @@ function AppStack() {
             name="trips/[id]/recap"
             options={{ presentation: 'fullScreenModal', headerShown: false, animation: 'fade', contentStyle: { backgroundColor: '#000' } }}
           />
-          <Stack.Screen name="trips/[id]/viewer" options={{ presentation: 'fullScreenModal', headerShown: false, animation: 'fade', contentStyle: { backgroundColor: '#000' } }} />
+          {/* Transparent so the gallery shows through while the photo is pulled down to close. */}
+          <Stack.Screen
+            name="trips/[id]/viewer"
+            options={{ presentation: 'transparentModal', headerShown: false, animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}
+          />
           <Stack.Screen name="account" options={{ title: 'Settings' }} />
           <Stack.Screen name="profile" options={{ ...sheet, title: 'Edit Profile', sheetAllowedDetents: [1] }} />
         </Stack.Protected>
