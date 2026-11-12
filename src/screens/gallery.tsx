@@ -13,7 +13,6 @@ import {
   RefreshControl,
   StyleSheet,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -43,18 +42,6 @@ function tileRatio(item: MediaItem) {
   return Math.min(1.5, Math.max(0.7, item.height / item.width));
 }
 
-/** Distributes items into columns, always adding to the shortest one. */
-function masonry(items: MediaItem[], columns: number) {
-  const cols: { item: MediaItem; index: number }[][] = Array.from({ length: columns }, () => []);
-  const heights = new Array(columns).fill(0);
-  items.forEach((item, index) => {
-    const target = heights.indexOf(Math.min(...heights));
-    cols[target].push({ item, index });
-    heights[target] += tileRatio(item);
-  });
-  return cols;
-}
-
 export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuckChange?: (stuck: boolean) => void }) {
   const router = useRouter();
   const c = useTheme();
@@ -76,19 +63,13 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
   const [selected, setSelected] = useState<Set<string> | null>(null);
   // Filter's offset inside the gallery panel (below the recap card).
   const [filterY, setFilterY] = useState(0);
-  // Windowing: tiles only load their image when near the screen.
-  const { height: windowHeight } = useWindowDimensions();
-  const [scrollY, setScrollY] = useState(0);
-  const [gridTop, setGridTop] = useState(0);
-  const windowTop = scrollY - windowHeight;
-  const windowBottom = scrollY + windowHeight * 2;
+
   const exporter = useExportMemories(trip.id);
 
   const items = useMemo(
     () => (data ?? []).filter((m) => filter === 'all' || (filter === 'liked' ? m.liked : m.kind === filter)),
     [data, filter],
   );
-  const columns = useMemo(() => masonry(items, galleryColumns), [items, galleryColumns]);
   const counts = useMemo(
     () => ({
       all: data?.length ?? 0,
@@ -155,7 +136,32 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
         }
         stickyOffset={space.lg + filterY}
         onStuckChange={onStuckChange}
-        onScrollY={setScrollY}
+        // Virtualised masonry grid: only tiles near the screen exist at all.
+        list={
+          data && items.length > 0
+            ? {
+                data: items,
+                numColumns: galleryColumns,
+                masonry: true,
+                contentPadding: (width - gridWidth) / 2 - GAP / 2,
+                keyExtractor: (m) => (m as MediaItem).id,
+                renderItem: ({ item, index }) => {
+                  const m = item as MediaItem;
+                  return (
+                    <View style={{ padding: GAP / 2 }}>
+                      <Tile
+                        item={m}
+                        width={columnWidth}
+                        selected={selected ? selected.has(m.id) : undefined}
+                        index={index}
+                        onPress={onTilePress}
+                      />
+                    </View>
+                  );
+                },
+              }
+            : undefined
+        }
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -167,7 +173,7 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
           />
         }
         contentContainerStyle={{ alignItems: 'center', paddingBottom: 120 }}>
-        {/* Rounded panel that slides over the bottom of the banner. */}
+        {/* Rounded panel that slides over the bottom of the banner (grid follows it). */}
         <View style={[styles.panel, { width, backgroundColor: c.background }]}>
           <View style={{ width: gridWidth, gap: space.lg, alignSelf: 'center' }}>
             {counts.all > 0 ? (
@@ -205,41 +211,7 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
                   }
                 />
               </View>
-            ) : (
-              <View
-                style={{
-                  flexDirection: 'row',
-                  gap: GAP,
-                  alignItems: 'flex-start',
-                }}
-                onLayout={(e) => setGridTop(e.nativeEvent.layout.y)}>
-                {columns.map((col, ci) => {
-                  let y = 0;
-                  return (
-                    <View key={ci} style={{ width: columnWidth, gap: GAP }}>
-                      {col.map(({ item, index }) => {
-                        const h = columnWidth * tileRatio(item);
-                        // Page offset ≈ banner + panel padding + grid top + position in column.
-                        const top = gridTop + y + 400;
-                        y += h + GAP;
-                        const near = top + h > windowTop && top < windowBottom;
-                        return (
-                          <Tile
-                            key={item.id}
-                            item={item}
-                            width={columnWidth}
-                            visible={near}
-                            selected={selected ? selected.has(item.id) : undefined}
-                            index={index}
-                            onPress={onTilePress}
-                          />
-                        );
-                      })}
-                    </View>
-                  );
-                })}
-              </View>
-            )}
+            ) : null}
           </View>
         </View>
       </TripHeroScroll>
@@ -462,7 +434,6 @@ function FilterBar({ value, onChange }: { value: Filter; onChange: (f: Filter) =
 const Tile = memo(function Tile({
   item,
   width,
-  visible,
   selected,
   index,
   onPress,
@@ -470,19 +441,14 @@ const Tile = memo(function Tile({
   item: MediaItem;
   width: number;
   index: number;
-  /** Near the screen: load the image (once loaded, it stays). */
-  visible: boolean;
   /** undefined = not selecting; otherwise whether this tile is chosen. */
   selected?: boolean;
   onPress: (id: string, index: number) => void;
 }) {
   const c = useTheme();
-  // Once a tile has been near the screen, keep its image mounted (no flicker on scroll-back).
-  const [seen, setSeen] = useState(visible);
-  if (visible && !seen) setSeen(true);
   // Small server preview when there is one; otherwise the photo itself or a
   // first frame made on this device (older memories).
-  const localFrame = useVideoThumbnail(item, seen && !item.thumbUrl);
+  const localFrame = useVideoThumbnail(item, !item.thumbUrl);
   const source = item.thumbUrl ?? (item.kind === 'photo' ? item.url : localFrame);
   const label = `${item.kind === 'video' ? `Video, ${formatDuration(item.durationMs)}` : 'Photo'} by ${item.isMine ? 'you' : item.uploaderName}`;
 
@@ -504,7 +470,7 @@ const Tile = memo(function Tile({
         ]}>
         {item.sampleColors ? (
           <LinearGradient colors={item.sampleColors} style={StyleSheet.absoluteFill} />
-        ) : source && seen ? (
+        ) : source ? (
           <Image
             source={{
               uri: source,
@@ -515,7 +481,7 @@ const Tile = memo(function Tile({
             contentFit="cover"
             transition={120}
             cachePolicy="disk"
-            priority={visible ? 'high' : 'low'}
+            priority="high"
           />
         ) : null}
         {selected !== undefined ? (
