@@ -50,8 +50,11 @@ export function TripHeroScroll({
   stickyHeader,
   stickyOffset = 0,
   onStuckChange,
+  onScrollY,
   children,
 }: {
+  /** Throttled vertical offset, for loading only what's on screen. */
+  onScrollY?: (y: number) => void;
   trip: TripDetail;
   onInvite?: () => void;
   refreshControl?: ReactElement<RefreshControlProps>;
@@ -78,8 +81,14 @@ export function TripHeroScroll({
   const stickAt = height - HERO_OVERLAP + stickyOffset - navBottom;
   const y = useSharedValue(0);
   const [stuck, setStuck] = useState(false);
+  const lastReported = useSharedValue(-1000);
   const onScroll = useAnimatedScrollHandler((e) => {
     y.value = e.contentOffset.y;
+    // Report every ~120 pt of movement; enough for windowing, cheap for JS.
+    if (onScrollY && Math.abs(e.contentOffset.y - lastReported.value) > 120) {
+      lastReported.value = e.contentOffset.y;
+      scheduleOnRN(onScrollY, e.contentOffset.y);
+    }
   });
   useAnimatedReaction(
     () => !!stickyHeader && y.value >= stickAt,

@@ -1,3 +1,4 @@
+import { BlurView } from 'expo-blur';
 import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -16,10 +17,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { scheduleOnRN } from 'react-native-worklets';
 
 import { formatDuration, plural } from '@/lib/format';
-import { computeRecap, markRecapSeen, type Recap } from '@/lib/recap';
+import { computeRecap, getRecapData, markRecapSeen, type Recap } from '@/lib/recap';
 import { useSession } from '@/lib/session';
 import type { MediaItem, TripDetail } from '@/lib/types';
-import { useLoad } from '@/lib/use-load';
 import { useA11yPrefs } from '@/ui/a11y';
 import { Avatar } from '@/ui/avatar';
 import { haptic } from '@/ui/haptics';
@@ -35,15 +35,21 @@ export default function RecapScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { backend } = useSession();
-  const { data } = useLoad(async () => {
-    const [trip, media] = await Promise.all([backend.getTrip(id), backend.listMedia(id)]);
-    return { trip, media };
-  });
+  // Usually the gallery has already loaded everything: start instantly from that.
+  const [cached] = useState(() => getRecapData(id));
+  const [fetched, setFetched] = useState<{ trip: TripDetail; media: MediaItem[] } | null>(null);
+  useEffect(() => {
+    markRecapSeen(id);
+    if (cached) return;
+    Promise.all([backend.getTrip(id), backend.listMedia(id)])
+      .then(([trip, media]) => setFetched({ trip, media }))
+      .catch(() => router.back());
+  }, [id, cached, backend, router]);
 
-  useEffect(() => markRecapSeen(id), [id]);
-
-  if (!data) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
-  return <RecapStory trip={data.trip} recap={computeRecap(data.media, data.trip.members)} onClose={() => router.back()} />;
+  const data = cached ?? fetched;
+  const recap = useMemo(() => (data ? computeRecap(data.media, data.trip.members) : null), [data]);
+  if (!data || !recap) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
+  return <RecapStory trip={data.trip} recap={recap} onClose={() => router.back()} />;
 }
 
 function RecapStory({ trip, recap, onClose }: { trip: TripDetail; recap: Recap; onClose: () => void }) {
@@ -92,17 +98,19 @@ function RecapStory({ trip, recap, onClose }: { trip: TripDetail; recap: Recap; 
   }
 
   const slide = slides[index];
-  const bg = slide.background?.kind === 'photo' ? slide.background.url : trip.coverUrl;
+  // Small previews are plenty under a blur and are already cached by the gallery.
+  const bg = slide.background ? (slide.background.thumbUrl ?? (slide.background.kind === 'photo' ? slide.background.url : null)) : trip.coverUrl;
 
   return (
     <View style={{ flex: 1, backgroundColor: '#000' }}>
       {/* Blurred photo behind each slide, darkened for legibility. */}
       {bg ? (
         <Animated.View key={`bg-${index}`} entering={FadeIn.duration(400)} style={StyleSheet.absoluteFill}>
-          <Image source={{ uri: bg }} style={StyleSheet.absoluteFill} contentFit="cover" blurRadius={30} />
+          <Image source={{ uri: bg }} style={StyleSheet.absoluteFill} contentFit="cover" cachePolicy="disk" />
+          <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFill} />
         </Animated.View>
       ) : null}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.55)' }]} />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.35)' }]} />
 
       {/* Tap zones: left goes back, right goes forward; holding pauses. */}
       <View style={[StyleSheet.absoluteFill, { flexDirection: 'row' }]}>
@@ -313,8 +321,9 @@ function Stat({ value, label }: { value: number; label: string }) {
 }
 
 function Thumb({ item, style }: { item: MediaItem; style: object }) {
-  return item.kind === 'photo' && item.url ? (
-    <Image source={{ uri: item.url }} style={style} contentFit="cover" />
+  const uri = item.thumbUrl ?? (item.kind === 'photo' ? item.url : null);
+  return uri ? (
+    <Image source={{ uri, cacheKey: item.thumbUrl ? `thumb-${item.id}` : `media-${item.id}` }} style={style} contentFit="cover" />
   ) : (
     <View style={[style, { backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }]}>
       <Icon name="play.fill" size={26} color="#fff" />

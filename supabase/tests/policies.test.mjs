@@ -180,6 +180,17 @@ await test('member uploads into the reserved path and completes', async () => {
   assert.equal(status, 'ready');
 });
 
+await test('previews: uploader only, recorded once, sealed like the memory', async () => {
+  const thumb = photoPath.replace(/\.jpg$/, '.thumb.jpg');
+  await rejects(
+    as('bob', `insert into storage.objects (bucket_id, name, metadata) values ('trip-media', $1, $2)`, [thumb, { size: 900, mimetype: 'image/jpeg' }]),
+    /row-level security/,
+  );
+  await as('alice', `insert into storage.objects (bucket_id, name, metadata) values ('trip-media', $1, $2)`, [thumb, { size: 900, mimetype: 'image/jpeg' }]);
+  await as('alice', `select public.set_media_thumb($1)`, [photoId]);
+  await rejects(as('alice', `update public.media set thumb_path = 'x' where id = $1`, [photoId]), /permission denied/);
+});
+
 await test('nobody, including the uploader, can read media before reveal', async () => {
   for (const user of ['alice', 'bob', 'carol']) {
     assert.equal((await as(user, `select * from storage.objects where bucket_id = 'trip-media'`)).rows.length, 0, user);
@@ -214,11 +225,13 @@ await db.query(`update public.trips set starts_at = now() - interval '5 days', u
 await test('after reveal, members (and only members) can read media', async () => {
   for (const user of ['alice', 'bob']) {
     const objects = await as(user, `select name from storage.objects where bucket_id = 'trip-media'`);
-    assert.deepEqual(objects.rows.map((r) => r.name), [photoPath], user);
+    assert.deepEqual(objects.rows.map((r) => r.name).sort(), [photoPath, photoPath.replace(/\.jpg$/, '.thumb.jpg')].sort(), user);
     assert.equal((await as(user, `select * from public.list_trip_media($1)`, [tripId])).rows.length, 1, user);
   }
   assert.equal((await as('carol', `select * from storage.objects where bucket_id = 'trip-media'`)).rows.length, 0);
   assert.equal((await as('carol', `select * from public.list_trip_media($1)`, [tripId])).rows.length, 0);
+  const listed = (await as('bob', `select thumb_path from public.list_trip_media($1)`, [tripId])).rows[0];
+  assert.equal(listed.thumb_path, photoPath.replace(/\.jpg$/, '.thumb.jpg'), 'preview listed after reveal');
 });
 
 await test('after reveal, members can like memories; likes are private', async () => {

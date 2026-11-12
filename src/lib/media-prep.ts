@@ -1,6 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import { Directory, File, Paths } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
+import * as VideoThumbnails from 'expo-video-thumbnails';
 
 import { limits } from './config';
 import type { NewMedia } from './types';
@@ -62,6 +63,25 @@ function parseExifDate(value: unknown): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
+const THUMB_EDGE = 480;
+
+/** ~480 px JPEG preview of a local image, saved next to the upload. Never throws. */
+async function makeThumb(id: string, imageUri: string): Promise<string | null> {
+  try {
+    const context = ImageManipulator.manipulate(imageUri).resize({ width: THUMB_EDGE });
+    const image = await context.renderAsync();
+    const saved = await image.saveAsync({ compress: 0.6, format: SaveFormat.JPEG });
+    context.release();
+    image.release();
+    const target = new File(uploadsDir, `${id}.thumb.jpg`);
+    if (target.exists) target.delete();
+    new File(saved.uri).move(target);
+    return target.uri;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Re-encodes a photo as JPEG, capped at a long edge of `limits.maxPhotoEdge`.
  * Re-encoding drops all EXIF metadata, including GPS location; only the
@@ -98,6 +118,7 @@ export async function preparePhoto(input: {
   const target = new File(uploadsDir, `${id}.jpg`);
   source.move(target);
   const bytes = await checkedSize(target.uri, 'photo');
+  const thumbUri = await makeThumb(id, target.uri);
   return {
     id,
     tripId: input.tripId,
@@ -109,6 +130,7 @@ export async function preparePhoto(input: {
     width: saved.width,
     height: saved.height,
     capturedAt: parseExifDate(input.exif?.DateTimeOriginal) ?? (input.exif ? null : new Date().toISOString()),
+    thumbUri,
   };
 }
 
@@ -135,6 +157,14 @@ export async function prepareVideo(input: {
   const target = new File(uploadsDir, `${id}.${isMp4 ? 'mp4' : 'mov'}`);
   adopt(source, target);
   const bytes = await checkedSize(target.uri, 'video');
+  // First frame of the local file as the preview.
+  let thumbUri: string | null = null;
+  try {
+    const frame = await VideoThumbnails.getThumbnailAsync(target.uri, { time: 0, quality: 0.7 });
+    thumbUri = await makeThumb(id, frame.uri);
+  } catch {
+    thumbUri = null;
+  }
   return {
     id,
     tripId: input.tripId,
@@ -143,6 +173,7 @@ export async function prepareVideo(input: {
     fileUri: target.uri,
     bytes,
     durationMs: Math.min(durationMs, limits.maxVideoSeconds * 1000 + 500),
+    thumbUri,
     width: input.width,
     height: input.height,
     capturedAt: input.fromCamera ? new Date().toISOString() : null,

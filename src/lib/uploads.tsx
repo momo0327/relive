@@ -70,6 +70,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
       .filter((item) => {
         if (item.owner !== 'preview') return true;
         deleteLocalCopy(item.fileUri);
+        if (item?.thumbUri) deleteLocalCopy(item.thumbUri);
         return false;
       })
       // An upload interrupted by the app being terminated restarts from the
@@ -84,7 +85,10 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
 
   // Persist everything except finished items.
   useEffect(() => {
-    writeJson(QUEUE_KEY, items.filter((i) => i.status !== 'done'));
+    writeJson(
+      QUEUE_KEY,
+      items.filter((i) => i.status !== 'done'),
+    );
   }, [items]);
 
   const patch = useCallback((id: string, update: Partial<QueueItem>) => {
@@ -94,9 +98,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
   const requeueTransientFailures = useCallback(() => {
     setItems((prev) =>
       prev.map((i) =>
-        i.status === 'failed' && !i.permanent && i.attempts < MAX_AUTO_ATTEMPTS
-          ? { ...i, status: 'queued', error: null }
-          : i,
+        i.status === 'failed' && !i.permanent && i.attempts < MAX_AUTO_ATTEMPTS ? { ...i, status: 'queued', error: null } : i,
       ),
     );
   }, []);
@@ -138,9 +140,14 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
         .then((outcome) => {
           if (outcome === 'ready') {
             deleteLocalCopy(next.fileUri);
+            if (next.thumbUri) deleteLocalCopy(next.thumbUri);
             patch(next.id, { status: 'done', progress: 1 });
           } else {
-            patch(next.id, { status: 'failed', permanent: true, error: 'The server couldn’t verify this file, so it wasn’t saved.' });
+            patch(next.id, {
+              status: 'failed',
+              permanent: true,
+              error: 'The server couldn’t verify this file, so it wasn’t saved.',
+            });
           }
         })
         .catch((error) => {
@@ -160,7 +167,9 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
               setTimeout(() => {
                 retryTimers.current.delete(next.id);
                 setItems((prev) =>
-                  prev.map((i) => (i.id === next.id && i.status === 'failed' && !i.permanent ? { ...i, status: 'queued', error: null } : i)),
+                  prev.map((i) =>
+                    i.id === next.id && i.status === 'failed' && !i.permanent ? { ...i, status: 'queued', error: null } : i,
+                  ),
                 );
               }, delay),
             );
@@ -201,7 +210,15 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
         if (!userId) return;
         setItems((prev) => [
           ...prev,
-          ...media.map((m) => ({ ...m, owner: userId, status: 'queued' as const, progress: 0, error: null, permanent: false, attempts: 0 })),
+          ...media.map((m) => ({
+            ...m,
+            owner: userId,
+            status: 'queued' as const,
+            progress: 0,
+            error: null,
+            permanent: false,
+            attempts: 0,
+          })),
         ]);
       },
       retry(id) {
@@ -212,6 +229,7 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
         setItems((prev) => {
           const item = prev.find((i) => i.id === id);
           if (item) deleteLocalCopy(item.fileUri);
+          if (item?.thumbUri) deleteLocalCopy(item.thumbUri);
           return prev.filter((i) => i.id !== id);
         });
       },
@@ -221,7 +239,10 @@ export function UploadQueueProvider({ children }: { children: ReactNode }) {
       clearAll() {
         abort.current?.abort();
         setItems((prev) => {
-          prev.forEach((i) => deleteLocalCopy(i.fileUri));
+          prev.forEach((i) => {
+            deleteLocalCopy(i.fileUri);
+            if (i.thumbUri) deleteLocalCopy(i.thumbUri);
+          });
           return [];
         });
       },

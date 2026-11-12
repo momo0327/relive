@@ -1,5 +1,14 @@
 import { readJson, writeJson } from './kv';
-import type { MediaItem, Member } from './types';
+import type { MediaItem, Member, TripDetail } from './types';
+
+/** The gallery's already-loaded trip and memories, so the recap opens instantly. */
+const loaded = new Map<string, { trip: TripDetail; media: MediaItem[] }>();
+export function setRecapData(trip: TripDetail, media: MediaItem[]) {
+  loaded.set(trip.id, { trip, media });
+}
+export function getRecapData(tripId: string) {
+  return loaded.get(tripId) ?? null;
+}
 
 export type Contributor = { userId: string; name: string; member: Member | null; count: number };
 

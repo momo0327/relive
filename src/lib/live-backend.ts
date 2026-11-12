@@ -7,7 +7,7 @@ import { measureTone } from './image-tone';
 import { monoNow, syncServerTime } from './clock';
 import { config, limits } from './config';
 import { requireSupabase } from './supabase';
-import type { MediaItem, TripDetail, TripStatus, TripSummary } from './types';
+import type { MediaItem, NewMedia, TripDetail, TripStatus, TripSummary } from './types';
 
 type TripRow = {
   id: string;
@@ -73,6 +73,22 @@ async function currentUserId(): Promise<string> {
   const id = data.session?.user.id;
   if (!id) throw new Error('not_authenticated');
   return id;
+}
+
+/** Best effort: the gallery falls back to a frame made on the phone if this fails. */
+async function uploadThumb(media: NewMedia, token: string) {
+  const file = new File(media.thumbUri!);
+  if (!file.exists) return;
+  const path = `${media.tripId}/${(await currentUserId())}/${media.id}.thumb.jpg`;
+  const res = await fetch(`${config.supabaseUrl}/storage/v1/object/trip-media/${path}`, {
+    method: 'POST',
+    body: await file.bytes(),
+    headers: { authorization: `Bearer ${token}`, apikey: config.supabaseKey, 'content-type': 'image/jpeg', 'x-upsert': 'false' },
+  });
+  const duplicate = res.status === 409;
+  if (!res.ok && !duplicate) return;
+  await rpc('set_media_thumb', { p_id: media.id });
+  file.delete();
 }
 
 async function uploadCover(tripId: string, uri: string): Promise<void> {
@@ -183,13 +199,16 @@ export const liveBackend: Backend = {
     const rows = await rpc<{
       id: string; storage_path: string; kind: 'photo' | 'video'; duration_ms: number | null;
       width: number | null; height: number | null; captured_at: string | null; created_at: string;
-      uploader_id: string; uploader_name: string; is_mine: boolean; liked?: boolean;
+      uploader_id: string; uploader_name: string; is_mine: boolean; liked?: boolean; thumb_path?: string | null;
     }[]>('list_trip_media', { p_trip: tripId });
     if (!rows.length) return [];
     // Signing goes through the storage read policy, which re-checks the reveal.
     const { data: signed } = await requireSupabase()
       .storage.from('trip-media')
-      .createSignedUrls(rows.map((r) => r.storage_path), limits.signedUrlSeconds);
+      .createSignedUrls(
+        rows.flatMap((r) => (r.thumb_path ? [r.storage_path, r.thumb_path] : [r.storage_path])),
+        limits.signedUrlSeconds,
+      );
     const urls = new Map((signed ?? []).flatMap((s) => (s.signedUrl && s.path ? [[s.path, s.signedUrl] as const] : [])));
     return rows.map<MediaItem>((r) => ({
       id: r.id,
@@ -203,6 +222,7 @@ export const liveBackend: Backend = {
       isMine: r.is_mine,
       liked: !!r.liked,
       url: urls.get(r.storage_path) ?? null,
+      thumbUrl: r.thumb_path ? urls.get(r.thumb_path) ?? null : null,
     }));
   },
 
@@ -271,7 +291,9 @@ export const liveBackend: Backend = {
     } finally {
       task.release();
     }
-    return rpc<'ready' | 'rejected'>('complete_media_upload', { p_id: media.id });
+    const outcome = await rpc<'ready' | 'rejected'>('complete_media_upload', { p_id: media.id });
+    if (outcome === 'ready' && media.thumbUri) await uploadThumb(media, token).catch(() => undefined);
+    return outcome;
   },
 
   deleteMedia: (mediaId) => rpc('delete_media', { p_id: mediaId }),

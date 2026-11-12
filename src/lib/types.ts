@@ -52,6 +52,8 @@ export type MediaItem = {
   liked: boolean;
   /** Short-lived signed URL, minted only after the server confirms the reveal. */
   url: string | null;
+  /** Signed URL of the small preview, when one exists. */
+  thumbUrl?: string | null;
   /** Preview mode only: placeholder gradient instead of real media. */
   sampleColors?: [string, string];
 };
@@ -80,6 +82,8 @@ export type NewMedia = {
   width: number;
   height: number;
   capturedAt: string | null;
+  /** Small JPEG preview (first frame for videos), uploaded alongside. */
+  thumbUri?: string | null;
 };
 
 export type UploadOutcome = 'ready' | 'rejected';

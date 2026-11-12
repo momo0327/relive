@@ -4,17 +4,26 @@ import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import * as VideoThumbnails from 'expo-video-thumbnails';
 import { useEffect, useMemo, useState, type ComponentType } from 'react';
-import { ActivityIndicator, Platform, PlatformColor, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Platform,
+  PlatformColor,
+  Pressable,
+  RefreshControl,
+  StyleSheet,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { formatDuration, plural } from '@/lib/format';
-import { markRecapSeen, recapSeen } from '@/lib/recap';
+import { markRecapSeen, recapSeen, setRecapData } from '@/lib/recap';
 import { useSession } from '@/lib/session';
 import { useExportMemories, type ExportProgress } from '@/lib/use-export-memories';
 import type { MediaItem, TripDetail } from '@/lib/types';
 import { useLoad } from '@/lib/use-load';
+import { useVideoThumbnail } from '@/lib/video-thumbs';
 import { setViewerItems } from '@/lib/viewer-cache';
 import { useA11yPrefs } from '@/ui/a11y';
 import { useLayout } from '@/ui/layout';
@@ -53,19 +62,26 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
   const { gutter, galleryColumns, width, contentWidth, regular } = useLayout();
   const [filter, setFilter] = useState<Filter>('all');
   const [refreshing, setRefreshing] = useState(false);
-  const { data, error, reload } = useLoad(() => backend.listMedia(trip.id));
+  const { data, error, reload } = useLoad(() => backend.listMedia(trip.id), { refocusAfterMs: 5 * 60 * 1000 });
 
-  // First time this device opens the revealed trip, play its recap.
+  // Hand the loaded memories to the recap; first time after the reveal, play it.
   useEffect(() => {
+    if (data) setRecapData(trip, data);
     if (data && data.length > 0 && !recapSeen(trip.id)) {
       markRecapSeen(trip.id);
       router.push(`/trips/${trip.id}/recap`);
     }
-  }, [data, trip.id, router]);
+  }, [data, trip, router]);
   // Selection mode for "Choose memories…" export; null when not selecting.
   const [selected, setSelected] = useState<Set<string> | null>(null);
   // Filter's offset inside the gallery panel (below the recap card).
   const [filterY, setFilterY] = useState(0);
+  // Windowing: tiles only load their image when near the screen.
+  const { height: windowHeight } = useWindowDimensions();
+  const [scrollY, setScrollY] = useState(0);
+  const [gridTop, setGridTop] = useState(0);
+  const windowTop = scrollY - windowHeight;
+  const windowBottom = scrollY + windowHeight * 2;
   const exporter = useExportMemories(trip.id);
 
   const items = useMemo(
@@ -83,12 +99,14 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
     [data],
   );
 
-
   const gridWidth = regular ? contentWidth : width - gutter * 2;
   const columnWidth = (gridWidth - GAP * (galleryColumns - 1)) / galleryColumns;
 
   function open(index: number) {
-    setViewerItems(trip.id, items, trip.isOwner, { tripName: trip.name, members: trip.members });
+    setViewerItems(trip.id, items, trip.isOwner, {
+      tripName: trip.name,
+      members: trip.members,
+    });
     router.push(`/trips/${trip.id}/viewer?index=${index}`);
   }
 
@@ -101,7 +119,6 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
     });
     Haptics.selectionAsync().catch(() => undefined);
   }
-
 
   async function saveSelected() {
     if (!selected?.size) return;
@@ -123,6 +140,7 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
         }
         stickyOffset={space.lg + filterY}
         onStuckChange={onStuckChange}
+        onScrollY={setScrollY}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -136,67 +154,83 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
         contentContainerStyle={{ alignItems: 'center', paddingBottom: 120 }}>
         {/* Rounded panel that slides over the bottom of the banner. */}
         <View style={[styles.panel, { width, backgroundColor: c.background }]}>
-        <View style={{ width: gridWidth, gap: space.lg, alignSelf: 'center' }}>
-          {counts.all > 0 ? (
-            <>
-              <RecapCard
-                total={counts.all}
-                onPress={() => router.push(`/trips/${trip.id}/recap`)}
-              />
-              {/* Measured so the pinned copy appears exactly when this one reaches the header. */}
-              <View onLayout={(e) => setFilterY(e.nativeEvent.layout.y)}>
-                <FilterBar value={filter} onChange={setFilter} />
-              </View>
-            </>
-          ) : null}
-
-          {!data ? (
-            // The cover stays put while memories load; only this area waits.
-            <View style={{ minHeight: 320 }}>
-              {error ? (
-                <ErrorState message={error} onRetry={reload} />
-              ) : (
-                <SkeletonGrid columns={galleryColumns} width={gridWidth} gap={GAP} />
-              )}
-            </View>
-          ) : items.length === 0 ? (
-            <View style={{ minHeight: 320 }}>
-              <MessageState
-                icon="photo.on.rectangle.angled"
-                title={counts.all === 0 ? 'No memories in this trip' : filter === 'liked' ? 'No favourites yet' : 'Nothing here'}
-                message={
-                  counts.all === 0
-                    ? 'Nobody added photos or videos before the trip ended.'
-                    : filter === 'liked'
-                      ? 'Tap the heart on a photo or video to add it here.'
-                      : 'Try another filter.'
-                }
-              />
-            </View>
-          ) : (
-            <View style={{ flexDirection: 'row', gap: GAP, alignItems: 'flex-start' }}>
-              {columns.map((col, ci) => (
-                <View key={ci} style={{ width: columnWidth, gap: GAP }}>
-                  {col.map(({ item, index }) => (
-                    <Tile
-                      key={item.id}
-                      item={item}
-                      width={columnWidth}
-                      selected={selected ? selected.has(item.id) : undefined}
-                      onPress={() => {
-                        if (selected) toggle(item.id);
-                        else {
-                          haptic.tap();
-                          open(index);
-                        }
-                      }}
-                    />
-                  ))}
+          <View style={{ width: gridWidth, gap: space.lg, alignSelf: 'center' }}>
+            {counts.all > 0 ? (
+              <>
+                <RecapCard total={counts.all} onPress={() => router.push(`/trips/${trip.id}/recap`)} />
+                {/* Measured so the pinned copy appears exactly when this one reaches the header. */}
+                <View onLayout={(e) => setFilterY(e.nativeEvent.layout.y)}>
+                  <FilterBar value={filter} onChange={setFilter} />
                 </View>
-              ))}
-            </View>
-          )}
-        </View>
+              </>
+            ) : null}
+
+            {!data ? (
+              // The cover stays put while memories load; only this area waits.
+              <View style={{ minHeight: 320 }}>
+                {error ? (
+                  <ErrorState message={error} onRetry={reload} />
+                ) : (
+                  <SkeletonGrid columns={galleryColumns} width={gridWidth} gap={GAP} />
+                )}
+              </View>
+            ) : items.length === 0 ? (
+              <View style={{ minHeight: 320 }}>
+                <MessageState
+                  icon="photo.on.rectangle.angled"
+                  title={
+                    counts.all === 0 ? 'No memories in this trip' : filter === 'liked' ? 'No favourites yet' : 'Nothing here'
+                  }
+                  message={
+                    counts.all === 0
+                      ? 'Nobody added photos or videos before the trip ended.'
+                      : filter === 'liked'
+                        ? 'Tap the heart on a photo or video to add it here.'
+                        : 'Try another filter.'
+                  }
+                />
+              </View>
+            ) : (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  gap: GAP,
+                  alignItems: 'flex-start',
+                }}
+                onLayout={(e) => setGridTop(e.nativeEvent.layout.y)}>
+                {columns.map((col, ci) => {
+                  let y = 0;
+                  return (
+                    <View key={ci} style={{ width: columnWidth, gap: GAP }}>
+                      {col.map(({ item, index }) => {
+                        const h = columnWidth * tileRatio(item);
+                        // Page offset ≈ banner + panel padding + grid top + position in column.
+                        const top = gridTop + y + 400;
+                        y += h + GAP;
+                        const near = top + h > windowTop && top < windowBottom;
+                        return (
+                          <Tile
+                            key={item.id}
+                            item={item}
+                            width={columnWidth}
+                            visible={near}
+                            selected={selected ? selected.has(item.id) : undefined}
+                            onPress={() => {
+                              if (selected) toggle(item.id);
+                              else {
+                                haptic.tap();
+                                open(index);
+                              }
+                            }}
+                          />
+                        );
+                      })}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
         </View>
       </TripHeroScroll>
 
@@ -207,9 +241,7 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
           allSelected={!!selected && items.length > 0 && items.every((m) => selected.has(m.id))}
           onExport={() => setSelected(new Set())}
           onToggleAll={() =>
-            setSelected((prev) =>
-              prev && items.every((m) => prev.has(m.id)) ? new Set() : new Set(items.map((m) => m.id)),
-            )
+            setSelected((prev) => (prev && items.every((m) => prev.has(m.id)) ? new Set() : new Set(items.map((m) => m.id))))
           }
           onCancel={() => setSelected(null)}
           onSave={saveSelected}
@@ -220,7 +252,6 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
 }
 
 const glassSupported = Platform.OS === 'ios' && isGlassEffectAPIAvailable();
-
 
 /** White Liquid Glass pill (solid white fallback) for the floating export controls. */
 function GlassPill({ children }: { children: React.ReactNode }) {
@@ -260,7 +291,9 @@ function ExportBar({
   const { gutter } = useLayout();
   const busy = progress !== null;
   const dark = '#0E0F10';
-  const press = ({ pressed }: { pressed: boolean }) => ({ transform: [{ scale: pressed ? 0.96 : 1 }] });
+  const press = ({ pressed }: { pressed: boolean }) => ({
+    transform: [{ scale: pressed ? 0.96 : 1 }],
+  });
 
   let content: React.ReactNode;
   if (busy) {
@@ -279,25 +312,24 @@ function ExportBar({
     );
   } else if (selectedCount !== null) {
     content = (
+      // ✕ on the left, Select all centred, Save on the right.
       <Row style={{ justifyContent: 'space-between', paddingHorizontal: gutter }}>
-        <Row gap={space.sm}>
-          <Pressable onPress={withTap(onCancel)} accessibilityRole="button" accessibilityLabel="Cancel selection" style={press}>
-            <GlassPill>
-              <View style={styles.exportRound}>
-                <Icon name="xmark" size={18} color={dark} weight="semibold" />
-              </View>
-            </GlassPill>
-          </Pressable>
-          <Pressable onPress={withTap(onToggleAll)} accessibilityRole="button" style={press}>
-            <GlassPill>
-              <Row style={styles.exportCompact}>
-                <Txt variant="headline" style={{ color: dark }}>
-                  {allSelected ? 'Deselect all' : 'Select all'}
-                </Txt>
-              </Row>
-            </GlassPill>
-          </Pressable>
-        </Row>
+        <Pressable onPress={withTap(onCancel)} accessibilityRole="button" accessibilityLabel="Cancel selection" style={press}>
+          <GlassPill>
+            <View style={styles.exportRound}>
+              <Icon name="xmark" size={22} color={dark} weight="semibold" />
+            </View>
+          </GlassPill>
+        </Pressable>
+        <Pressable onPress={withTap(onToggleAll)} accessibilityRole="button" style={press}>
+          <GlassPill>
+            <Row style={styles.exportCompact}>
+              <Txt variant="headline" style={{ color: dark }}>
+                {allSelected ? 'Deselect all' : 'Select all'}
+              </Txt>
+            </Row>
+          </GlassPill>
+        </Pressable>
         <Pressable
           onPress={withTap(onSave)}
           disabled={selectedCount === 0}
@@ -306,7 +338,7 @@ function ExportBar({
           style={(state) => [press(state), { opacity: selectedCount === 0 ? 0.55 : 1 }]}>
           <GlassPill>
             <View style={styles.exportRound}>
-              <Icon name="square.and.arrow.down" size={24} color={dark} weight="semibold" />
+              <Icon name="square.and.arrow.down" size={28} color={dark} weight="semibold" />
             </View>
           </GlassPill>
         </Pressable>
@@ -321,9 +353,13 @@ function ExportBar({
         accessibilityLabel="Export memories"
         style={({ pressed }) => [
           styles.exportRoundButton,
-          { right: gutter, backgroundColor: c.text, transform: [{ scale: pressed ? 0.95 : 1 }] },
+          {
+            right: gutter,
+            backgroundColor: c.text,
+            transform: [{ scale: pressed ? 0.95 : 1 }],
+          },
         ]}>
-        <Icon name="square.and.arrow.down" size={24} color={c.background} />
+        <Icon name="square.and.arrow.down" size={28} color={c.background} />
       </Pressable>
     );
   }
@@ -360,6 +396,9 @@ function RecapCard({ total, onPress }: { total: number; onPress: () => void }) {
     </Pressable>
   );
 }
+
+/** Matches the locked page's camera button. */
+const BUTTON_SIZE = 68;
 
 const segments: Filter[] = ['all', 'photo', 'video'];
 const SEGMENT_TRACK = Platform.OS === 'ios' ? PlatformColor('tertiarySystemFill') : 'rgba(118,118,128,0.24)';
@@ -399,7 +438,10 @@ function FilterBar({ value, onChange }: { value: Filter; onChange: (f: Filter) =
         // Off: the segmented control's track colour. On: its selected-segment colour.
         style={({ pressed }) => [
           styles.heart,
-          { backgroundColor: favourites ? (c.scheme === 'dark' ? SEGMENT_SELECTED_DARK : '#FFFFFF') : SEGMENT_TRACK, opacity: pressed ? 0.7 : 1 },
+          {
+            backgroundColor: favourites ? (c.scheme === 'dark' ? SEGMENT_SELECTED_DARK : '#FFFFFF') : SEGMENT_TRACK,
+            opacity: pressed ? 0.7 : 1,
+          },
         ]}>
         <Icon name={favourites ? 'heart.fill' : 'heart'} size={17} color={c.text} />
       </Pressable>
@@ -407,41 +449,29 @@ function FilterBar({ value, onChange }: { value: Filter; onChange: (f: Filter) =
   );
 }
 
-const thumbnailCache = new Map<string, string>();
-
-function useVideoThumbnail(item: MediaItem): string | null {
-  const [uri, setUri] = useState(() => thumbnailCache.get(item.id) ?? null);
-  useEffect(() => {
-    if (item.kind !== 'video' || !item.url || thumbnailCache.has(item.id)) return;
-    let cancelled = false;
-    VideoThumbnails.getThumbnailAsync(item.url, { time: 500, quality: 0.6 })
-      .then((result) => {
-        thumbnailCache.set(item.id, result.uri);
-        if (!cancelled) setUri(result.uri);
-      })
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-  }, [item]);
-  return uri;
-}
-
 function Tile({
   item,
   width,
+  visible,
   selected,
   onPress,
 }: {
   item: MediaItem;
   width: number;
+  /** Near the screen: load the image (once loaded, it stays). */
+  visible: boolean;
   /** undefined = not selecting; otherwise whether this tile is chosen. */
   selected?: boolean;
   onPress: () => void;
 }) {
   const c = useTheme();
-  const thumb = useVideoThumbnail(item);
-  const source = item.kind === 'photo' ? item.url : thumb;
+  // Once a tile has been near the screen, keep its image mounted (no flicker on scroll-back).
+  const [seen, setSeen] = useState(visible);
+  if (visible && !seen) setSeen(true);
+  // Small server preview when there is one; otherwise the photo itself or a
+  // first frame made on this device (older memories).
+  const localFrame = useVideoThumbnail(item, seen && !item.thumbUrl);
+  const source = item.thumbUrl ?? (item.kind === 'photo' ? item.url : localFrame);
   const label = `${item.kind === 'video' ? `Video, ${formatDuration(item.durationMs)}` : 'Photo'} by ${item.isMine ? 'you' : item.uploaderName}`;
 
   return (
@@ -451,16 +481,29 @@ function Tile({
       accessibilityLabel={label}
       onPress={onPress}
       style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
-      <View style={[styles.tile, { width, height: width * tileRatio(item), backgroundColor: c.surface }]}>
+      <View
+        style={[
+          styles.tile,
+          {
+            width,
+            height: width * tileRatio(item),
+            backgroundColor: c.surface,
+          },
+        ]}>
         {item.sampleColors ? (
           <LinearGradient colors={item.sampleColors} style={StyleSheet.absoluteFill} />
-        ) : source ? (
+        ) : source && seen ? (
           <Image
-            source={{ uri: source, cacheKey: `media-${item.id}${item.kind === 'video' ? '-thumb' : ''}` }}
+            source={{
+              uri: source,
+              cacheKey: `media-${item.id}${item.kind === 'video' ? '-thumb' : ''}`,
+            }}
             recyclingKey={item.id}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
-            transition={150}
+            transition={120}
+            cachePolicy="disk"
+            priority={visible ? 'high' : 'low'}
           />
         ) : null}
         {selected !== undefined ? (
@@ -484,10 +527,26 @@ function Tile({
 }
 
 const styles = StyleSheet.create({
-  recap: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, borderRadius: radius.lg },
+  recap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.md,
+    padding: space.md,
+    borderRadius: radius.lg,
+  },
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm },
-  heart: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-  panel: { borderTopLeftRadius: HERO_OVERLAP, borderTopRightRadius: HERO_OVERLAP, paddingTop: space.lg },
+  heart: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  panel: {
+    borderTopLeftRadius: HERO_OVERLAP,
+    borderTopRightRadius: HERO_OVERLAP,
+    paddingTop: space.lg,
+  },
   check: {
     position: 'absolute',
     top: 8,
@@ -504,11 +563,21 @@ const styles = StyleSheet.create({
   checkOff: { backgroundColor: 'rgba(0,0,0,0.25)' },
   exportWrap: { position: 'absolute', left: 0, right: 0 },
   // Same size as the ✕ / Save buttons shown in selection mode.
-  exportRoundButton: { position: 'absolute', bottom: 0, width: 50, height: 50, borderRadius: 25, alignItems: 'center', justifyContent: 'center' },
-  exportRound: { width: 50, height: 50, alignItems: 'center', justifyContent: 'center' },
-  exportCompact: { paddingHorizontal: space.lg, minHeight: 50 },
+  // All export controls share the locked page's 68 pt button size.
+  exportRoundButton: {
+    position: 'absolute',
+    bottom: 0,
+    width: BUTTON_SIZE,
+    height: BUTTON_SIZE,
+    borderRadius: BUTTON_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exportRound: { width: BUTTON_SIZE, height: BUTTON_SIZE, alignItems: 'center', justifyContent: 'center' },
+  // Fixed width so it doesn't jump between "Select all" and "Deselect all".
+  exportCompact: { width: 200, minHeight: BUTTON_SIZE, justifyContent: 'center' },
   exportPill: { borderRadius: radius.pill, overflow: 'hidden' },
-  exportInner: { paddingHorizontal: space.xl, minHeight: 54 },
+  exportInner: { paddingHorizontal: space.xl, minHeight: BUTTON_SIZE },
   exportFallback: {
     backgroundColor: '#FFFFFF',
     shadowColor: '#000',
