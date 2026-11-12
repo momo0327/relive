@@ -33,6 +33,14 @@ export default function Viewer() {
   const [videoPlayer, setVideoPlayer] = useState<VideoPlayer | null>(null);
   const [items, setItems] = useState<MediaItem[]>(() => getViewerEntry(tripId).items);
   const [index, setIndex] = useState(() => Math.min(Number(indexParam ?? 0), Math.max(items.length - 1, 0)));
+  // Video players start only once the photo has settled for a moment, so
+  // scrubbing quickly past videos never creates (and tears down) a player for
+  // each one, which crashed the app.
+  const [playIndex, setPlayIndex] = useState(index);
+  useEffect(() => {
+    const t = setTimeout(() => setPlayIndex(index), 350);
+    return () => clearTimeout(t);
+  }, [index]);
   const [chrome, setChrome] = useState(true);
   const [busy, setBusy] = useState<'save' | 'share' | null>(null);
   const list = useRef<FlatList<MediaItem>>(null);
@@ -244,7 +252,7 @@ export default function Viewer() {
         renderItem={({ item, index: i }) => (
           <View style={{ width, height }}>
             {item.kind === 'video' ? (
-              <VideoPage item={item} active={i === index} onError={refreshUrls} onPlayer={setVideoPlayer} onTap={() => setChrome((v) => !v)} />
+              <VideoPage item={item} active={i === playIndex} onError={refreshUrls} onPlayer={setVideoPlayer} onTap={() => setChrome((v) => !v)} />
             ) : (
               <PhotoPage item={item} onTap={() => setChrome((v) => !v)} onError={refreshUrls} />
             )}

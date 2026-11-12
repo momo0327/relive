@@ -3,6 +3,8 @@
  * if the audio module isn't in this build, scrubbing just stays silent.
  * Follows the ringer switch (silent mode = no sound) and mixes with music.
  */
+import { requireOptionalNativeModule } from 'expo';
+
 type Player = { seekTo: (s: number) => Promise<void>; play: () => void; volume: number };
 
 let player: Player | null = null;
@@ -13,6 +15,9 @@ function load() {
   if (ready) return;
   ready = true;
   try {
+    // Builds without the native audio module (e.g. TestFlight build 5) must
+    // never load expo-audio at all: skip quietly.
+    if (!requireOptionalNativeModule('ExpoAudio')) return;
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const audio = require('expo-audio');
     audio.setAudioModeAsync({ playsInSilentMode: false, interruptionMode: 'mixWithOthers' }).catch(() => undefined);
