@@ -72,5 +72,14 @@
     "postinstall": "patch-package",
     "eas-build-post-install": "npx patch-package && node scripts/verify-patches.mjs"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "ios": {
+        "buildFromSource": [
+          "expo-camera"
+        ]
+      }
+    }
+  }
 }

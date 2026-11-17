@@ -43,6 +43,8 @@ export default function Capture() {
   // Recording state machine (see take-recorder.ts).
   const recorder = takeRecorder;
   const [joining, setJoining] = useState(false);
+  // TEMPORARY camera diagnostics (remove once zoom is confirmed on device).
+  const [debugLenses, setDebugLenses] = useState<LensInfo[] | null>(null);
 
   // Zoom, in the phone's zoom factors (see camera-zoom.ts). Starts on the main (1x) lens.
   const [setup, setSetup] = useState<ZoomSetup>(FALLBACK_ZOOM);
@@ -159,6 +161,18 @@ export default function Capture() {
     }
   }
 
+  const [torchSettled, setTorchSettled] = useState(true);
+  const torchWanted = mode === 'video' && flash === 'on' && facing === 'back';
+  useEffect(() => {
+    if (!torchWanted) return;
+    const off = setTimeout(() => setTorchSettled(false), 0);
+    const on = setTimeout(() => setTorchSettled(true), 450);
+    return () => {
+      clearTimeout(off);
+      clearTimeout(on);
+    };
+  }, [torchWanted, mode, facing, recordingSince]);
+
   // Leaving the screen ends any recording.
   useEffect(() => () => recorder.stop(), [recorder]);
   useLayoutEffect(() => {
@@ -216,6 +230,7 @@ export default function Capture() {
   }));
 
   function applyLenses(lenses: LensInfo[]) {
+    setDebugLenses(lenses);
     const next = zoomSetup(lenses, facing);
     setSetup(next);
     setZoom(next.wide);
@@ -272,7 +287,9 @@ export default function Capture() {
   const recording = recordingSince != null;
   const micDenied = mode === 'video' && micPermission && !micPermission.granted;
   const lensLabel = lensName(zoom, setup);
-  const torch = mode === 'video' && flash === 'on';
+  // Back camera light for video. The front camera has none: a white ring light around the screen instead.
+  const torch = mode === 'video' && flash === 'on' && facing === 'back';
+  const ringLight = mode === 'video' && flash === 'on' && facing === 'front';
 
   const shutter = (
     <Pressable
@@ -358,7 +375,8 @@ export default function Capture() {
             mirror={facing === 'front'}
             mode={mode}
             flash={mode === 'picture' ? flash : 'off'}
-            enableTorch={torch}
+            // Re-sent after each reconfiguration (mode, flip, recording start), which turns the light off.
+          enableTorch={torch && torchSettled}
             mute={!!micDenied}
             videoQuality="720p"
             selectedLens={setup.lens}
@@ -372,6 +390,18 @@ export default function Capture() {
             accessibilityLabel="Camera viewfinder"
           />
           {flashShutter ? <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: 0.6 }]} /> : null}
+          {ringLight ? <View pointerEvents="none" style={styles.ringLight} /> : null}
+          <View pointerEvents="none" style={styles.debug}>
+            <Txt variant="caption" style={{ color: '#0f0', fontSize: 10 }}>
+              {`dbg2 ${facing} exact=${setup.exact} lens=${(setup.lens ?? '-').replace('AVCaptureDeviceTypeBuiltIn', '')} wide=${setup.wide} min=${setup.min} max=${Math.round(setup.max)} stops=${setup.stops.join(',')} zoom=${zoom.toFixed(2)} prop=${zoomProp(zoom, setup).toFixed(2)} torch=${torch}\n${
+                debugLenses == null
+                  ? 'no lenses yet'
+                  : debugLenses
+                      .map((l) => `${l.deviceType.replace('AVCaptureDeviceTypeBuiltIn', '')}[${(l.switchOverZoomFactors ?? []).join('/')}|${l.minZoomFactor ?? '?'}-${l.maxZoomFactor != null ? Math.round(l.maxZoomFactor) : '?'}]`)
+                      .join(' ')
+              }`}
+            </Txt>
+          </View>
 
           {/* Close (left) and flash (right). */}
           <View
@@ -488,6 +518,8 @@ function glide(from: number, to: number, apply: (z: number) => void) {
 }
 
 const styles = StyleSheet.create({
+  ringLight: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderWidth: 34, borderColor: '#FFFFFF', borderBottomLeftRadius: 36, borderBottomRightRadius: 36 },
+  debug: { position: 'absolute', left: 8, right: 8, top: 110, backgroundColor: 'rgba(0,0,0,0.6)', padding: 4 },
   permission: { flex: 1, backgroundColor: '#0B0B0F', padding: space.xl },
   top: {
     position: 'absolute',
