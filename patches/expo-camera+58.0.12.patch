@@ -1,0 +1,64 @@
+diff --git a/node_modules/expo-camera/build/Camera.types.d.ts b/node_modules/expo-camera/build/Camera.types.d.ts
+index 0be9079..7968059 100644
+--- a/node_modules/expo-camera/build/Camera.types.d.ts
++++ b/node_modules/expo-camera/build/Camera.types.d.ts
+@@ -226,6 +226,11 @@ export type LensInfo = {
+      * Use this for displaying lens options in the UI.
+      */
+     localizedName: string;
++    /** Relive patch (iOS): zoom factors where a virtual camera switches lens. */
++    switchOverZoomFactors?: number[];
++    /** Relive patch (iOS): usable zoom factor range of the device. */
++    minZoomFactor?: number;
++    maxZoomFactor?: number;
+ };
+ /**
+  * @hidden
+diff --git a/node_modules/expo-camera/ios/Common/CameraRecords.swift b/node_modules/expo-camera/ios/Common/CameraRecords.swift
+index c0233da..8469e28 100644
+--- a/node_modules/expo-camera/ios/Common/CameraRecords.swift
++++ b/node_modules/expo-camera/ios/Common/CameraRecords.swift
+@@ -3,4 +3,9 @@ import ExpoModulesCore
+ struct LensInfo: Record {
+   @Field var deviceType: String = ""
+   @Field var localizedName: String = ""
++  // Relive: zoom factors where a virtual camera switches lens (e.g. [2, 10] = 0.5x -> 1x at 2, -> 5x at 10),
++  // and the usable zoom range, so the app can show 0.5x / 1x / 5x like the Camera app.
++  @Field var switchOverZoomFactors: [Double] = []
++  @Field var minZoomFactor: Double = 1
++  @Field var maxZoomFactor: Double = 1
+ }
+diff --git a/node_modules/expo-camera/ios/Current/CameraSessionManager.swift b/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
+index 9ac259a..175a0a3 100644
+--- a/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
++++ b/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
+@@ -218,7 +218,13 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     do {
+       try device.lockForConfiguration()
+       defer { device.unlockForConfiguration() }
+-      device.videoZoomFactor = minZoomFactor * pow(device.activeFormat.videoMaxZoomFactor / minZoomFactor, delegate.zoom)
++      if delegate.zoom >= 1 {
++        // Relive: values of 1 or more are an exact zoom factor, clamped to what the device allows.
++        let factor = CGFloat(delegate.zoom)
++        device.videoZoomFactor = max(device.minAvailableVideoZoomFactor, min(device.maxAvailableVideoZoomFactor, factor))
++      } else {
++        device.videoZoomFactor = minZoomFactor * pow(device.activeFormat.videoMaxZoomFactor / minZoomFactor, delegate.zoom)
++      }
+     } catch {
+       log.info("\(#function): \(error.localizedDescription)")
+     }
+@@ -236,7 +242,13 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     // Lens ordering can be varied which causes problems if you keep the result in react state.
+     // We sort them to provide a stable ordering
+     return availableLenses
+-      .map { LensInfo(deviceType: $0.deviceType.rawValue, localizedName: $0.localizedName) }
++      .map { device -> LensInfo in
++        var info = LensInfo(deviceType: device.deviceType.rawValue, localizedName: device.localizedName)
++        info.switchOverZoomFactors = device.virtualDeviceSwitchOverVideoZoomFactors.map { $0.doubleValue }
++        info.minZoomFactor = Double(device.minAvailableVideoZoomFactor)
++        info.maxZoomFactor = Double(device.maxAvailableVideoZoomFactor)
++        return info
++      }
+       .sorted { $0.deviceType < $1.deviceType }
+   }
+ 

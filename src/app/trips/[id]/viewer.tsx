@@ -6,7 +6,16 @@ import * as MediaLibrary from 'expo-media-library';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Sharing from 'expo-sharing';
 import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
-import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { scheduleOnRN, scheduleOnUI } from 'react-native-worklets';
+import ReAnimated, {
+  scrollTo,
+  useAnimatedRef,
+  useAnimatedScrollHandler,
+  useSharedValue,
+  type AnimatedRef,
+  type SharedValue,
+} from 'react-native-reanimated';
 import {
   Alert,
   Animated,
@@ -18,7 +27,6 @@ import {
   StyleSheet,
   View,
   useWindowDimensions,
-  type ScrollViewInstance,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -26,8 +34,9 @@ import { friendlyError } from '@/lib/errors';
 import { useSession } from '@/lib/session';
 import type { MediaItem } from '@/lib/types';
 import { getViewerEntry, setViewerItems } from '@/lib/viewer-cache';
-import { playTick } from '@/lib/tick-sound';
+import { playTick, warmTick } from '@/lib/tick-sound';
 import { useVideoThumbnail } from '@/lib/video-thumbs';
+import { fullKey, previewSource } from '@/lib/media-keys';
 import { haptic, withTap } from '@/ui/haptics';
 import { chooseReportReason } from '@/screens/report';
 import { showActions, type SheetAction } from '@/ui/action-sheet';
@@ -86,8 +95,15 @@ export default function Viewer() {
     return () => clearTimeout(t);
   }, [index]);
   const [chrome, setChrome] = useState(true);
+  // The photo draws first; the controls and filmstrip join one frame later.
+  const [controlsReady, setControlsReady] = useState(false);
+  useEffect(() => {
+    const f = requestAnimationFrame(() => setControlsReady(true));
+    return () => cancelAnimationFrame(f);
+  }, []);
   const [busy, setBusy] = useState<'save' | 'share' | null>(null);
-  const list = useRef<FlatList<MediaItem>>(null);
+  // Animated ref: the filmstrip moves the pager from the UI thread while scrubbing.
+  const list = useAnimatedRef<FlatList<MediaItem>>();
   const current = items[index];
 
   // Signed URLs are short-lived; refresh the set if one stops working.
@@ -114,6 +130,56 @@ export default function Viewer() {
   useEffect(() => {
     if (items.length === 0) router.back();
   }, [items.length, router]);
+
+  // Stable page renderer: pages re-render only when their own inputs change,
+  // not on every index change (e.g. while scrubbing the filmstrip).
+  const toggleChrome = useCallback(() => setChrome((v) => !v), []);
+
+  // While swiping the big photo, slide the filmstrip by the same fraction on
+  // the UI thread, so it moves smoothly with the finger instead of jumping.
+  const stripRef = useAnimatedRef<ReAnimated.ScrollView>();
+  // True while the filmstrip is being dragged or gliding: it then leads, the pager follows.
+  const stripActive = useSharedValue(false);
+  const stripMounted = useSharedValue(false);
+  // Index centred in the filmstrip (kept up to date by both sides, on the UI thread).
+  const stripShown = useSharedValue(index);
+  const pagerScroll = useAnimatedScrollHandler((e) => {
+    if (stripActive.value || width <= 0) return;
+    const x = e.contentOffset.x / width;
+    stripShown.value = Math.round(x);
+    if (stripMounted.value) scrollTo(stripRef, x * THUMB_STEP, 0, false);
+  });
+  // Each photo the filmstrip passes: haptic, click, and the new index for the counter and info row.
+  const onStripTick = useCallback((i: number) => {
+    haptic.select();
+    playTick();
+    setIndex(i);
+  }, []);
+  const onStripTap = useCallback(
+    (i: number) => {
+      haptic.select();
+      setIndex(i);
+      list.current?.scrollToIndex({ index: i, animated: false });
+    },
+    [list],
+  );
+
+  const renderPage = useCallback(
+    ({ item, index: i }: { item: MediaItem; index: number }) => (
+      <MediaPage
+        item={item}
+        width={width}
+        height={height}
+        // Full-size photo only for the page on screen; neighbours show the preview.
+        current={i === playIndex}
+        playing={i === playIndex}
+        onTap={toggleChrome}
+        onError={refreshUrls}
+        onPlayer={setVideoPlayer}
+      />
+    ),
+    [width, height, playIndex, toggleChrome, refreshUrls],
+  );
 
   if (!current) return <View style={{ flex: 1, backgroundColor: '#000' }} />;
 
@@ -276,10 +342,6 @@ export default function Viewer() {
   const date = current.takenAt.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
   const uploader = members.find((m) => m.userId === current.uploaderId);
 
-  function jumpTo(i: number) {
-    setIndex(i);
-    list.current?.scrollToIndex({ index: i, animated: false });
-  }
 
   return (
     <View style={{ flex: 1 }}>
@@ -288,8 +350,10 @@ export default function Viewer() {
       <Animated.View
         style={{ flex: 1, opacity: closing, transform: [{ translateY: dragY }, { scale: dragScale }] }}
         {...pullToClose.panHandlers}>
-        <FlatList
+        <ReanimatedFlatList
           ref={list}
+          onScroll={pagerScroll}
+          scrollEventThrottle={16}
           data={items}
           horizontal
           pagingEnabled
@@ -298,19 +362,18 @@ export default function Viewer() {
           getItemLayout={(_d, i) => ({ length: width, offset: width * i, index: i })}
           keyExtractor={(m) => m.id}
           onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
-          renderItem={({ item, index: i }) => (
-            <View style={{ width, height }}>
-              {item.kind === 'video' ? (
-                <VideoPage item={item} active={i === playIndex} onError={refreshUrls} onPlayer={setVideoPlayer} onTap={() => setChrome((v) => !v)} />
-              ) : (
-                <PhotoPage item={item} onTap={() => setChrome((v) => !v)} onError={refreshUrls} />
-              )}
-            </View>
-          )}
+          // Only the current page and one on each side exist. (The default kept
+          // ~10 pages on each side mounted, each downloading its full-size photo.)
+          windowSize={3}
+          initialNumToRender={1}
+          maxToRenderPerBatch={1}
+          updateCellsBatchingPeriod={16}
+          removeClippedSubviews
+          renderItem={renderPage}
         />
       </Animated.View>
 
-      {chrome && !pulling ? (
+      {chrome && !pulling && controlsReady ? (
         <>
           {/* Shading so the controls read on any photo. */}
           <LinearGradient
@@ -371,13 +434,26 @@ export default function Viewer() {
                 onPress={toggleLike}
               />
             </View>
-            <Filmstrip items={items} index={index} onSelect={jumpTo} />
+            <Filmstrip
+              items={items}
+              pagerRef={list}
+              pageWidth={width}
+              stripRef={stripRef}
+              active={stripActive}
+              mounted={stripMounted}
+              shown={stripShown}
+              onTick={onStripTick}
+              onTap={onStripTap}
+            />
           </View>
         </>
       ) : null}
     </View>
   );
 }
+
+// Reanimated-driven list so the pager's scroll can move the filmstrip on the UI thread.
+const ReanimatedFlatList = ReAnimated.FlatList;
 
 const THUMB_W = 46;
 const THUMB_GAP = 6;
@@ -388,94 +464,139 @@ const THUMB_STEP = THUMB_W + THUMB_GAP;
  * thumbnails sliding beneath it. Whatever passes under the frame becomes the
  * photo shown (live while dragging), with a haptic tick and a soft click.
  */
-function Filmstrip({ items, index, onSelect }: { items: MediaItem[]; index: number; onSelect: (i: number) => void }) {
+/**
+ * Photos-style scrubber. All scroll logic runs on the UI thread: while the
+ * strip is dragged or gliding it moves the photo pager itself (no JS round
+ * trip), and JS only plays the haptic/click and updates the counter. When it
+ * comes to rest it snaps to the nearest thumbnail. Catching it mid-glide is
+ * just a new drag: the finger and the glide are tracked separately, and the
+ * snap waits until neither is active.
+ */
+const Filmstrip = memo(function Filmstrip({
+  items,
+  pagerRef,
+  pageWidth,
+  stripRef,
+  active,
+  mounted,
+  shown,
+  onTick,
+  onTap,
+}: {
+  items: MediaItem[];
+  pagerRef: AnimatedRef<FlatList<MediaItem>>;
+  pageWidth: number;
+  stripRef: AnimatedRef<ReAnimated.ScrollView>;
+  active: SharedValue<boolean>;
+  mounted: SharedValue<boolean>;
+  shown: SharedValue<number>;
+  onTick: (i: number) => void;
+  onTap: (i: number) => void;
+}) {
   const { width } = useWindowDimensions();
-  const strip = useRef<ScrollViewInstance>(null);
-  const dragging = useRef(false);
-  const shown = useRef(index);
   const side = (width - THUMB_W) / 2;
-
-  // Follow swipes on the big photo, but never fight the user's own drag.
-  // The first run only positions (no animation) in case contentOffset was ignored.
-  const firstRun = useRef(true);
+  const count = items.length;
+  // Where to start (also when the strip reappears after hiding the controls).
+  const [startIndex] = useState(() => shown.get());
+  // Opening must be instant: thumbnails near the current photo first, the rest a moment later.
+  const [allLive, setAllLive] = useState(false);
   useEffect(() => {
-    if (dragging.current) return;
-    shown.current = index;
-    strip.current?.scrollTo({ x: index * THUMB_STEP, animated: !firstRun.current });
-    firstRun.current = false;
-  }, [index]);
+    const t = setTimeout(() => setAllLive(true), 250);
+    return () => clearTimeout(t);
+  }, []);
 
-  const tapRef = useRef<(i: number) => void>(() => undefined);
-  useLayoutEffect(() => {
-    tapRef.current = (i) => {
-      if (i !== shown.current) {
-        shown.current = i;
-        haptic.select();
-        onSelect(i);
-      }
-      strip.current?.scrollTo({ x: i * THUMB_STEP, animated: true });
+  useEffect(() => {
+    warmTick();
+    mounted.set(true);
+    return () => {
+      mounted.set(false);
+      active.set(false);
+    };
+  }, [mounted, active]);
+
+  const touching = useSharedValue(false);
+  const gliding = useSharedValue(false);
+
+  // Snap once nothing moves it any more (checked again after a beat, because
+  // iOS can report the end of a glide just before a new touch begins).
+  const [settle] = useState(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    return (delay: number) => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (touching.get() || gliding.get()) return;
+        active.set(false);
+        settleStrip(stripRef, shown.get());
+      }, delay);
     };
   });
-  const tapThumb = useCallback((i: number) => tapRef.current(i), []);
 
-  function centred(x: number) {
-    return Math.max(0, Math.min(items.length - 1, Math.round(x / THUMB_STEP)));
-  }
-
-  function settle(x: number) {
-    const i = centred(x);
-    if (Math.abs(x - i * THUMB_STEP) > 0.5) strip.current?.scrollTo({ x: i * THUMB_STEP, animated: true });
-  }
+  const handler = useAnimatedScrollHandler({
+    onBeginDrag: () => {
+      touching.set(true);
+      active.set(true);
+    },
+    onEndDrag: () => {
+      touching.set(false);
+      // If a glide follows, it takes over; otherwise this settles.
+      scheduleOnRN(settle, 90);
+    },
+    onMomentumBegin: () => {
+      gliding.set(true);
+      active.set(true);
+    },
+    onMomentumEnd: () => {
+      gliding.set(false);
+      scheduleOnRN(settle, 30);
+    },
+    onScroll: (e) => {
+      // Only the user's own drag and glide lead; app-made scrolls (following
+      // the pager, snapping) must not change the photo.
+      if (!active.get()) return;
+      const i = Math.max(0, Math.min(count - 1, Math.round(e.contentOffset.x / THUMB_STEP)));
+      if (i === shown.get()) return;
+      shown.set(i);
+      scrollTo(pagerRef, i * pageWidth, 0, false);
+      scheduleOnRN(onTick, i);
+    },
+  });
 
   return (
     <View style={{ height: 76, justifyContent: 'center' }}>
-      {/* Plain ScrollView with every thumbnail mounted (they're tiny), so none
-          blank out while flicking fast; each thumbnail is memoised. */}
-      <ScrollView
-        ref={strip}
+      {/* Every thumbnail mounted (they're tiny), so none blank out while flicking fast. */}
+      <ReAnimated.ScrollView
+        ref={stripRef}
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: side, alignItems: 'center', gap: THUMB_GAP }}
-        // Start already centred on the current photo (e.g. when the controls reappear).
-        contentOffset={{ x: index * THUMB_STEP, y: 0 }}
-        // Free momentum (glides and slows down naturally); it settles on the
-        // nearest thumbnail once it comes to rest.
+        contentOffset={{ x: startIndex * THUMB_STEP, y: 0 }}
+        // Free momentum (glides and slows down naturally), then snaps.
         decelerationRate="normal"
         scrollEventThrottle={16}
-        onScrollBeginDrag={() => {
-          dragging.current = true;
-        }}
-        onMomentumScrollEnd={(e) => {
-          dragging.current = false;
-          settle(e.nativeEvent.contentOffset.x);
-        }}
-        onScrollEndDrag={(e) => {
-          if (Math.abs(e.nativeEvent.velocity?.x ?? 0) < 0.05) {
-            dragging.current = false;
-            settle(e.nativeEvent.contentOffset.x);
-          }
-        }}
-        onScroll={(e) => {
-          // Only the user's own drag (and its glide) changes the photo. Scrolls
-          // made by the app (initial position when the strip reappears after
-          // hiding the controls, following a swipe) must not, or it would jump.
-          if (!dragging.current) return;
-          const i = centred(e.nativeEvent.contentOffset.x);
-          if (i === shown.current) return;
-          shown.current = i;
-          haptic.select();
-          playTick();
-          onSelect(i);
-        }}
->
+        onScroll={handler}>
         {items.map((item, i) => (
-          <FilmThumb key={item.id} item={item} index={i} total={items.length} onPress={tapThumb} />
+          <FilmThumb
+            key={item.id}
+            item={item}
+            index={i}
+            total={count}
+            onPress={onTap}
+            live={allLive || Math.abs(i - startIndex) <= 6}
+          />
         ))}
-      </ScrollView>
+      </ReAnimated.ScrollView>
       {/* Fixed frame in the centre; the strip slides beneath it. */}
       <View pointerEvents="none" style={[styles.frame, { left: (width - THUMB_W) / 2 - 4 }]} />
     </View>
   );
+});
+
+/** Glides the strip onto a thumbnail (UI thread). */
+function settleStrip(strip: AnimatedRef<ReAnimated.ScrollView>, i: number) {
+  scheduleOnUI(() => {
+    'worklet';
+    scrollTo(strip, i * THUMB_STEP, 0, true);
+  });
 }
 
 const FilmThumb = memo(function FilmThumb({
@@ -483,12 +604,15 @@ const FilmThumb = memo(function FilmThumb({
   index,
   total,
   onPress,
+  live,
 }: {
   item: MediaItem;
   index: number;
   total: number;
   onPress: (i: number) => void;
+  live: boolean;
 }) {
+  if (!live) return <View style={styles.thumb} />;
   return (
     <Pressable
       onPress={() => onPress(index)}
@@ -499,7 +623,7 @@ const FilmThumb = memo(function FilmThumb({
         <LinearGradient colors={item.sampleColors} style={StyleSheet.absoluteFill} />
       ) : item.thumbUrl || (item.kind === 'photo' && item.url) ? (
         <Image
-          source={{ uri: item.thumbUrl ?? item.url!, cacheKey: item.thumbUrl ? `thumb-${item.id}` : `media-${item.id}` }}
+          source={previewSource(item)}
           style={StyleSheet.absoluteFill}
           contentFit="cover"
           transition={0}
@@ -515,7 +639,37 @@ const FilmThumb = memo(function FilmThumb({
   );
 });
 
-function PhotoPage({ item, onTap, onError }: { item: MediaItem; onTap: () => void; onError: () => void }) {
+const MediaPage = memo(function MediaPage({
+  item,
+  width,
+  height,
+  current,
+  playing,
+  onTap,
+  onError,
+  onPlayer,
+}: {
+  item: MediaItem;
+  width: number;
+  height: number;
+  current: boolean;
+  playing: boolean;
+  onTap: () => void;
+  onError: () => void;
+  onPlayer: (player: VideoPlayer | null) => void;
+}) {
+  return (
+    <View style={{ width, height }}>
+      {item.kind === 'video' ? (
+        <VideoPage item={item} active={playing} onError={onError} onPlayer={onPlayer} onTap={onTap} />
+      ) : (
+        <PhotoPage item={item} full={current} onTap={onTap} onError={onError} />
+      )}
+    </View>
+  );
+});
+
+function PhotoPage({ item, full, onTap, onError }: { item: MediaItem; full: boolean; onTap: () => void; onError: () => void }) {
   if (item.sampleColors) {
     return (
       <Pressable style={{ flex: 1 }} onPress={onTap} accessibilityLabel="Sample photo">
@@ -532,20 +686,33 @@ function PhotoPage({ item, onTap, onError }: { item: MediaItem; onTap: () => voi
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{ flex: 1 }}>
       <Pressable style={{ flex: 1 }} onPress={onTap} accessibilityRole="image" accessibilityLabel={`Photo by ${item.uploaderName}`}>
-        <Image
-          source={{ uri: item.url ?? undefined, cacheKey: `media-${item.id}` }}
-          // The grid's small preview is already on disk: show it until the full photo arrives.
-          placeholder={item.thumbUrl ? { uri: item.thumbUrl, cacheKey: `thumb-${item.id}` } : undefined}
-          placeholderContentFit="contain"
-          style={{ flex: 1 }}
-          contentFit="contain"
-          // Same disk-cache key as the gallery tile, so it shows instantly.
-          cachePolicy="disk"
-          transition={0}
-          priority="high"
-          onError={onError}
-          accessibilityIgnoresInvertColors
-        />
+        {/* The preview the gallery just showed is already decoded in memory,
+            so it appears the instant the viewer opens. */}
+        {item.thumbUrl ? (
+          <Image
+            source={{ uri: item.thumbUrl, cacheKey: `thumb-${item.id}` }}
+            style={StyleSheet.absoluteFill}
+            contentFit="contain"
+            cachePolicy="memory-disk"
+            transition={0}
+            priority="high"
+            accessibilityIgnoresInvertColors
+          />
+        ) : null}
+        {/* The full-size photo loads on top only for the page on screen (and
+            stays cached afterwards); until then the preview shows through. */}
+        {full || !item.thumbUrl ? (
+          <Image
+            source={{ uri: item.url ?? undefined, cacheKey: fullKey(item) }}
+            style={StyleSheet.absoluteFill}
+            contentFit="contain"
+            cachePolicy="memory-disk"
+            transition={0}
+            priority="high"
+            onError={onError}
+            accessibilityIgnoresInvertColors
+          />
+        ) : null}
       </Pressable>
     </ScrollView>
   );

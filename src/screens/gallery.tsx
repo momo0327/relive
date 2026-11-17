@@ -24,6 +24,7 @@ import type { MediaItem, TripDetail } from '@/lib/types';
 import { useLoad } from '@/lib/use-load';
 import { useVideoThumbnail } from '@/lib/video-thumbs';
 import { setViewerItems } from '@/lib/viewer-cache';
+import { previewSource } from '@/lib/media-keys';
 import { useA11yPrefs } from '@/ui/a11y';
 import { useLayout } from '@/ui/layout';
 import { HERO_OVERLAP, TripHeroScroll } from '@/ui/trip-hero';
@@ -145,6 +146,7 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
                 masonry: true,
                 contentPadding: (width - gridWidth) / 2 - GAP / 2,
                 keyExtractor: (m) => (m as MediaItem).id,
+                getItemType: (m) => (m as MediaItem).kind,
                 renderItem: ({ item, index }) => {
                   const m = item as MediaItem;
                   return (
@@ -449,7 +451,7 @@ const Tile = memo(function Tile({
   // Small server preview when there is one; otherwise the photo itself or a
   // first frame made on this device (older memories).
   const localFrame = useVideoThumbnail(item, !item.thumbUrl);
-  const source = item.thumbUrl ?? (item.kind === 'photo' ? item.url : localFrame);
+  const source = previewSource(item, localFrame);
   const label = `${item.kind === 'video' ? `Video, ${formatDuration(item.durationMs)}` : 'Photo'} by ${item.isMine ? 'you' : item.uploaderName}`;
 
   return (
@@ -472,15 +474,13 @@ const Tile = memo(function Tile({
           <LinearGradient colors={item.sampleColors} style={StyleSheet.absoluteFill} />
         ) : source ? (
           <Image
-            source={{
-              uri: source,
-              cacheKey: `media-${item.id}${item.kind === 'video' ? '-thumb' : ''}`,
-            }}
+            source={source}
             recyclingKey={item.id}
             style={StyleSheet.absoluteFill}
             contentFit="cover"
-            transition={120}
-            cachePolicy="disk"
+            // No fade: recycled cells must show their (cached) image at once.
+            transition={0}
+            cachePolicy="memory-disk"
             priority="high"
           />
         ) : null}

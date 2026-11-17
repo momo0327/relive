@@ -114,7 +114,13 @@ function AppStack() {
           {/* Transparent so the gallery shows through while the photo is pulled down to close. */}
           <Stack.Screen
             name="trips/[id]/viewer"
-            options={{ presentation: 'transparentModal', headerShown: false, animation: 'fade', contentStyle: { backgroundColor: 'transparent' } }}
+            options={{
+              presentation: 'transparentModal',
+              headerShown: false,
+              animation: 'fade',
+              animationDuration: 160,
+              contentStyle: { backgroundColor: 'transparent' },
+            }}
           />
           <Stack.Screen name="account" options={{ title: 'Settings' }} />
           <Stack.Screen name="profile" options={{ ...sheet, title: 'Edit Profile', sheetAllowedDetents: [1] }} />

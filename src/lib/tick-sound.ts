@@ -7,7 +7,11 @@ import { requireOptionalNativeModule } from 'expo';
 
 type Player = { seekTo: (s: number) => Promise<void>; play: () => void; volume: number };
 
-let player: Player | null = null;
+// A few players taking turns, so a click never waits for (or cuts off) the
+// previous one when photos fly past quickly.
+const POOL = 4;
+let players: Player[] = [];
+let next = 0;
 let ready = false;
 let lastPlayed = 0;
 
@@ -21,19 +25,30 @@ function load() {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const audio = require('expo-audio');
     audio.setAudioModeAsync({ playsInSilentMode: false, interruptionMode: 'mixWithOthers' }).catch(() => undefined);
-    player = audio.createAudioPlayer(require('@/assets/sounds/tick.wav'));
-    if (player) player.volume = 0.35;
+    const source = require('@/assets/sounds/tick.wav');
+    players = Array.from({ length: POOL }, () => {
+      const p = audio.createAudioPlayer(source) as Player;
+      p.volume = 0.35;
+      return p;
+    });
   } catch {
-    player = null;
+    players = [];
   }
+}
+
+/** Load the sound ahead of time, so the very first click isn't late. */
+export function warmTick() {
+  load();
 }
 
 export function playTick() {
   load();
   const now = Date.now();
-  // At most ~25 clicks a second, so very fast scrubbing doesn't buzz.
-  if (!player || now - lastPlayed < 40) return;
+  // One click per photo, up to ~40 a second.
+  if (players.length === 0 || now - lastPlayed < 25) return;
   lastPlayed = now;
+  const player = players[next];
+  next = (next + 1) % players.length;
   player.seekTo(0).catch(() => undefined);
   player.play();
 }

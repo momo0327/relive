@@ -56,6 +56,7 @@
     "@types/react": "~19.3.0",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~58.0.4",
+    "patch-package": "^8.0.1",
     "typescript": "~6.0.3"
   },
   "scripts": {
@@ -67,7 +68,9 @@
     "check": "npm run typecheck && npm run lint && npm run test:policies",
     "test:live": "node --env-file=.env.local supabase/tests/live.test.mjs",
     "seed:review": "node --env-file=.env.local scripts/seed-review-account.mjs",
-    "backfill:thumbs": "node --env-file=.env.local scripts/backfill-thumbnails.mjs"
+    "backfill:thumbs": "node --env-file=.env.local scripts/backfill-thumbnails.mjs",
+    "postinstall": "patch-package",
+    "eas-build-post-install": "npx patch-package && node scripts/verify-patches.mjs"
   },
   "private": true
 }

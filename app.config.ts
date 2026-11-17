@@ -26,7 +26,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     bundleIdentifier,
     icon: './assets/images/icon.png',
-    supportsTablet: true,
+    // iPhone only for v1 (runs in iPhone mode on iPad).
+    supportsTablet: false,
     usesAppleSignIn: true,
     associatedDomains: inviteHost ? [`applinks:${inviteHost}`] : undefined,
     config: { usesNonExemptEncryption: false },

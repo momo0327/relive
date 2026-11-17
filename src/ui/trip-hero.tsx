@@ -60,6 +60,8 @@ export function TripHeroScroll({
     numColumns?: number;
     masonry?: boolean;
     contentPadding?: number;
+    /** Separate recycling pools for cells with different contents (e.g. photo / video). */
+    getItemType?: (item: unknown) => string;
   };
   /** Throttled vertical offset, for loading only what's on screen. */
   onScrollY?: (y: number) => void;
@@ -169,6 +171,9 @@ export function TripHeroScroll({
           keyExtractor={list.keyExtractor}
           numColumns={list.numColumns}
           masonry={list.masonry}
+          getItemType={list.getItemType}
+          // Draw about a screen ahead, so a fast flick never shows empty cells.
+          drawDistance={windowHeight}
           contentContainerStyle={{ paddingHorizontal: list.contentPadding ?? 0, paddingBottom: 140 }}
           ListHeaderComponent={
             <View style={{ marginHorizontal: -(list.contentPadding ?? 0) }}>

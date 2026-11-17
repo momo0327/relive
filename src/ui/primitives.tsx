@@ -93,7 +93,8 @@ export function Icon({
 
 type ButtonProps = Omit<PressableProps, 'style' | 'children'> & {
   title: string;
-  kind?: 'primary' | 'secondary' | 'accent' | 'destructive' | 'plain';
+  /** `light` / `dark`: fixed white / dark grey, for black camera screens in any appearance. */
+  kind?: 'primary' | 'secondary' | 'accent' | 'destructive' | 'plain' | 'light' | 'dark';
   icon?: SymbolViewProps['name'];
   loading?: boolean;
   style?: StyleProp<ViewStyle>;
@@ -108,6 +109,8 @@ export function Button({ title, kind = 'primary', icon, loading, disabled, style
     secondary: { bg: c.surfaceRaised, fg: c.text },
     destructive: { bg: 'transparent', fg: c.danger },
     plain: { bg: 'transparent', fg: c.text },
+    light: { bg: '#FFFFFF', fg: '#000000' },
+    dark: { bg: '#1C1C1E', fg: '#FFFFFF' },
   }[kind];
   const inactive = disabled || loading;
   return (

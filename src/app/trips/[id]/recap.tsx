@@ -20,6 +20,7 @@ import { formatDuration, plural } from '@/lib/format';
 import { computeRecap, getRecapData, markRecapSeen, type Recap } from '@/lib/recap';
 import { useSession } from '@/lib/session';
 import type { MediaItem, TripDetail } from '@/lib/types';
+import { fullKey } from '@/lib/media-keys';
 import { useA11yPrefs } from '@/ui/a11y';
 import { Avatar } from '@/ui/avatar';
 import { haptic } from '@/ui/haptics';
@@ -323,7 +324,7 @@ function Stat({ value, label }: { value: number; label: string }) {
 function Thumb({ item, style }: { item: MediaItem; style: object }) {
   const uri = item.thumbUrl ?? (item.kind === 'photo' ? item.url : null);
   return uri ? (
-    <Image source={{ uri, cacheKey: item.thumbUrl ? `thumb-${item.id}` : `media-${item.id}` }} style={style} contentFit="cover" />
+    <Image source={{ uri, cacheKey: item.thumbUrl ? `thumb-${item.id}` : fullKey(item) }} style={style} contentFit="cover" />
   ) : (
     <View style={[style, { backgroundColor: 'rgba(255,255,255,0.15)', alignItems: 'center', justifyContent: 'center' }]}>
       <Icon name="play.fill" size={26} color="#fff" />

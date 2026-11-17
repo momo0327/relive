@@ -3,11 +3,11 @@ import { Image } from 'expo-image';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrepError, preparePhoto, prepareVideo } from '@/lib/media-prep';
 import { useTripUploads } from '@/lib/uploads';
-import { Button, Glass, IconButton, Row, Txt } from '@/ui/primitives';
+import { CameraShell } from '@/ui/camera-shell';
+import { Button, Row, Txt } from '@/ui/primitives';
 import { space } from '@/ui/theme';
 
 export type Shot =
@@ -30,7 +30,6 @@ export function CapturePreview({
   onRetake: () => void;
   onDone: () => void;
 }) {
-  const insets = useSafeAreaInsets();
   const { items, enqueue, retry } = useTripUploads(tripId);
   const [mediaId, setMediaId] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
@@ -73,74 +72,65 @@ export function CapturePreview({
     }
   }
 
-  const progress = item?.status === 'done' ? 1 : item?.progress ?? 0;
+  const progress = item?.status === 'done' ? 1 : (item?.progress ?? 0);
+  const failed = item?.status === 'failed';
   const status = !item
     ? null
     : item.status === 'done'
-      ? 'Memory saved. See it when your trip ends.'
-      : item.status === 'failed'
-        ? item.error ?? 'Upload interrupted.'
+      ? 'Saved'
+      : failed
+        ? (item.error ?? 'Upload interrupted.')
         : item.status === 'uploading'
           ? `Uploading ${Math.round(progress * 100)}%`
           : 'Waiting to upload…';
 
   return (
-    <View style={StyleSheet.absoluteFill}>
-      {shot.kind === 'photo' ? (
-        <Image source={{ uri: shot.uri }} style={StyleSheet.absoluteFill} contentFit="contain" accessibilityLabel="Photo you just took" />
-      ) : (
-        <PreviewVideo uri={shot.uri} />
-      )}
-
-      {/* Upload progress drawn over the shot */}
-      {item ? <View style={[StyleSheet.absoluteFill, styles.dim]} pointerEvents="none" /> : null}
-
-      {!item ? (
-        <View style={[styles.top, { paddingTop: insets.top + space.sm }]} pointerEvents="box-none">
-          <IconButton icon="xmark" label="Retake" tint="#fff" glass overMedia onPress={retake} />
-        </View>
-      ) : null}
-
-      <View style={[styles.bottom, { paddingBottom: Math.max(insets.bottom, space.lg) + space.md }]} pointerEvents="box-none">
-        {item ? (
-          <Glass overMedia style={styles.statusPill}>
-            <View style={{ gap: space.sm, alignItems: 'center' }} accessible accessibilityLiveRegion="polite" accessibilityLabel={status ?? ''}>
-              <Txt variant="headline" style={{ color: '#fff', textAlign: 'center' }}>
-                {status}
-              </Txt>
-              {item.status !== 'done' && item.status !== 'failed' ? (
-                <View style={styles.track}>
-                  <View style={[styles.fill, { width: `${Math.round(progress * 100)}%` }]} />
-                </View>
-              ) : null}
-              {item.status === 'failed' && !item.permanent ? (
-                <Button title="Retry now" kind="secondary" onPress={() => retry(item.id)} style={{ minHeight: 40 }} />
-              ) : null}
-              {item.status === 'failed' ? (
-                <Txt variant="footnote" style={{ color: 'rgba(255,255,255,0.7)', textAlign: 'center' }} onPress={onDone}>
-                  It stays in the trip’s upload list. Tap to close.
-                </Txt>
-              ) : null}
-            </View>
-          </Glass>
-        ) : (
-          <>
-            {error ? (
-              <Txt variant="footnote" style={{ color: '#FF8A80', textAlign: 'center', marginBottom: space.sm }}>
-                {error}
-              </Txt>
-            ) : null}
-            <Row gap={space.md} style={{ justifyContent: 'center' }}>
-              <Button title="Retake" kind="secondary" onPress={retake} style={{ minWidth: 130 }} />
-              <Button title="Upload" icon="arrow.up" kind="accent" loading={preparing} onPress={upload} style={{ minWidth: 150 }} />
-            </Row>
-            <Txt variant="footnote" style={{ color: 'rgba(255,255,255,0.75)', textAlign: 'center', marginTop: space.sm }}>
-              Once uploaded it’s sealed. Nobody, including you, sees it until the trip ends.
+    <CameraShell
+      viewport={
+        <>
+          {shot.kind === 'photo' ? (
+            <Image source={{ uri: shot.uri }} style={StyleSheet.absoluteFill} contentFit="cover" accessibilityLabel="Photo you just took" />
+          ) : (
+            <PreviewVideo uri={shot.uri} />
+          )}
+          {item ? <View style={[StyleSheet.absoluteFill, styles.dim]} pointerEvents="none" /> : null}
+        </>
+      }
+      controls={
+        item ? (
+          // Upload progress in place of the buttons.
+          <View style={styles.progress} accessible accessibilityLiveRegion="polite" accessibilityLabel={status ?? ''}>
+            <Txt variant="headline" style={{ color: '#fff', textAlign: 'center' }} numberOfLines={2}>
+              {status}
             </Txt>
-          </>
-        )}
-      </View>
-    </View>
+            {!failed && item.status !== 'done' ? (
+              <View style={styles.track}>
+                <View style={[styles.fill, { width: `${Math.round(progress * 100)}%` }]} />
+              </View>
+            ) : null}
+            {failed ? (
+              <Row gap={space.md}>
+                {!item.permanent ? <Button title="Retry" kind="secondary" onPress={() => retry(item.id)} style={{ minHeight: 40 }} /> : null}
+                <Button title="Close" kind="plain" onPress={onDone} style={{ minHeight: 40 }} />
+              </Row>
+            ) : null}
+          </View>
+        ) : (
+          // Retake beside a wide Upload pill.
+          <Row gap={space.md} style={styles.actions}>
+            <Button title="Retake" kind="dark" disabled={preparing} onPress={retake} style={styles.retake} />
+            <Button title="Upload" icon="arrow.up" kind="light" loading={preparing} onPress={upload} style={styles.uploadPill} />
+          </Row>
+        )
+      }
+      below={
+        error ? (
+          <Txt variant="footnote" style={{ color: '#FF8A80', textAlign: 'center' }} numberOfLines={2}>
+            {error}
+          </Txt>
+        ) : null
+      }
+    />
   );
 }
 
@@ -149,14 +139,15 @@ function PreviewVideo({ uri }: { uri: string }) {
     p.loop = true;
     p.play();
   });
-  return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="contain" nativeControls={false} />;
+  return <VideoView player={player} style={StyleSheet.absoluteFill} contentFit="cover" nativeControls={false} />;
 }
 
 const styles = StyleSheet.create({
-  top: { position: 'absolute', top: 0, left: space.lg },
-  bottom: { position: 'absolute', left: space.lg, right: space.lg, bottom: 0, alignItems: 'stretch' },
-  dim: { backgroundColor: 'rgba(0,0,0,0.35)', alignItems: 'center', justifyContent: 'center' },
-  statusPill: { borderRadius: 24, paddingHorizontal: space.xl, paddingVertical: space.lg },
+  dim: { backgroundColor: 'rgba(0,0,0,0.35)' },
+  actions: { flex: 1, paddingHorizontal: space.xl, alignItems: 'center' },
+  retake: { minWidth: 120, minHeight: 56 },
+  uploadPill: { flex: 1, minHeight: 56 },
+  progress: { flex: 1, alignItems: 'center', gap: space.sm, paddingHorizontal: space.xl },
   track: { width: 220, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' },
   fill: { height: 6, borderRadius: 3, backgroundColor: '#fff' },
 });
