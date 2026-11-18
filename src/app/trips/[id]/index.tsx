@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { formatTripDates } from '@/lib/format';
 import { useSession } from '@/lib/session';
+import { withLocalCover } from '@/lib/trip-list';
 import { getTripPreview } from '@/lib/trip-preview';
 import { useLoad } from '@/lib/use-load';
 import { GalleryView } from '@/screens/gallery';
@@ -24,7 +25,7 @@ export default function TripScreen() {
   // Until the details arrive, draw from the home card's data so the zoom
   // transition lands on the cover, not a loading screen.
   const [preview] = useState(() => getTripPreview(id));
-  const trip = loaded ?? preview;
+  const trip = loaded ? withLocalCover(loaded) : preview;
   const polls = useRef(0);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 

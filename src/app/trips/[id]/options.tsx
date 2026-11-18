@@ -4,6 +4,7 @@ import { Alert, StyleSheet, View } from 'react-native';
 import { friendlyError } from '@/lib/errors';
 import { cacheInvite } from '@/lib/invite-link';
 import { useSession } from '@/lib/session';
+import { editTripList, refreshTripList } from '@/lib/trip-list';
 import type { Member } from '@/lib/types';
 import { useLoad } from '@/lib/use-load';
 import { chooseReportReason } from '@/screens/report';
@@ -105,11 +106,17 @@ export default function TripOptions() {
         {
           text: 'Leave trip',
           style: 'destructive',
-          onPress: async () => {
-            if (await attempt(() => backend.leaveTrip(id), 'Couldn’t leave trip')) {
-              await cacheInvite(id, null);
-              router.dismissTo('/');
-            }
+          onPress: () => {
+            // Gone from the list at once; if the server refuses, it comes back.
+            editTripList((trips) => trips.filter((t) => t.id !== id));
+            router.dismissTo('/');
+            backend
+              .leaveTrip(id)
+              .then(() => cacheInvite(id, null))
+              .catch((e) => {
+                Alert.alert('Couldn’t leave trip', friendlyError(e));
+                refreshTripList();
+              });
           },
         },
       ],
@@ -122,11 +129,17 @@ export default function TripOptions() {
       {
         text: 'Delete trip',
         style: 'destructive',
-        onPress: async () => {
-          if (await attempt(() => backend.deleteTrip(id), 'Couldn’t delete trip')) {
-            await cacheInvite(id, null);
-            router.dismissTo('/');
-          }
+        onPress: () => {
+          // Gone from the list at once; if the server refuses, it comes back.
+          editTripList((trips) => trips.filter((t) => t.id !== id));
+          router.dismissTo('/');
+          backend
+            .deleteTrip(id)
+            .then(() => cacheInvite(id, null))
+            .catch((e) => {
+              Alert.alert('Couldn’t delete trip', friendlyError(e));
+              refreshTripList();
+            });
         },
       },
     ]);

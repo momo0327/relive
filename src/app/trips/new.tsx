@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Image as RNImage,
+  Keyboard,
   KeyboardAvoidingView,
   Linking,
   Platform,
@@ -14,6 +15,7 @@ import {
   ScrollView,
   StyleSheet,
   TextInput,
+  type TextInputInstance,
   View,
   type ScrollViewInstance,
 } from "react-native";
@@ -25,6 +27,9 @@ import { friendlyError } from "@/lib/errors";
 import { formatRevealMoment, plural } from "@/lib/format";
 import { measureTone } from "@/lib/image-tone";
 import { ensureNotificationPermission } from "@/lib/notifications";
+import { editTripList, refreshTripList, setLocalCover } from "@/lib/trip-list";
+import { setTripPreview } from "@/lib/trip-preview";
+import type { TripSummary } from "@/lib/types";
 import { useSession } from "@/lib/session";
 import {
   downloadUnsplash,
@@ -33,6 +38,7 @@ import {
   type UnsplashPhoto,
 } from "@/lib/unsplash";
 import { haptic, withTap } from "@/ui/haptics";
+import { Skeleton } from "@/ui/skeleton";
 import { useLayout } from "@/ui/layout";
 import { Button, Icon, Txt } from "@/ui/primitives";
 import { radius, space, useTheme } from "@/ui/theme";
@@ -84,7 +90,11 @@ export default function NewTrip() {
         ? `Trips can last up to ${MAX_DAYS} days.`
         : null;
 
+  const nameInput = useRef<TextInputInstance>(null);
   function goTo(next: number) {
+    // The keyboard belongs to the name page only.
+    if (next === 0) nameInput.current?.focus();
+    else Keyboard.dismiss();
     setStep(next);
     setReached((r) => Math.max(r, next));
     // The preview (last step) is a full-screen overlay above the cover page.
@@ -99,18 +109,29 @@ export default function NewTrip() {
   async function create() {
     setSaving(true);
     try {
-      let coverUri: string | null = null;
-      if (cover?.kind === "library") coverUri = cover.uri;
-      if (cover?.kind === "unsplash")
-        coverUri = await downloadUnsplash(cover.photo);
-      if (cover?.kind === "color")
-        coverUri = await coverColorUri(COVER_COLORS[cover.index].module);
-      const id = await backend.createTrip({
+      // Create the trip itself first (one quick request) and open it at once;
+      // the cover is prepared and uploaded in the background.
+      const id = await backend.createTrip({ name: name.trim(), startsAt: start, unlocksAt, coverUri: null });
+      const now = new Date();
+      const trip: TripSummary = {
+        id,
         name: name.trim(),
+        coverUrl: previewUri,
+        coverKey: null,
+        coverTone: cover?.kind === "library" ? cover.tone : "dark",
         startsAt: start,
         unlocksAt,
-        coverUri,
-      });
+        status: start > now ? "upcoming" : "active",
+        isOwner: true,
+        memberCount: 1,
+        memoryCount: 0,
+        myMemoryCount: 0,
+        createdAt: now,
+      };
+      setLocalCover(id, previewUri);
+      setTripPreview(trip);
+      editTripList((trips) => [trip, ...trips.filter((t) => t.id !== id)]);
+      if (cover) uploadCoverLater(id, cover);
       ensureNotificationPermission().catch(() => undefined);
       router.dismissTo(`/trips/${id}`);
       router.push(`/trips/${id}/invite`);
@@ -118,6 +139,19 @@ export default function NewTrip() {
       Alert.alert("Couldn’t create trip", friendlyError(error));
       setSaving(false);
     }
+  }
+
+  function uploadCoverLater(id: string, chosen: Cover) {
+    (async () => {
+      let coverUri: string | null = null;
+      if (chosen.kind === "library") coverUri = chosen.uri;
+      if (chosen.kind === "unsplash") coverUri = await downloadUnsplash(chosen.photo);
+      if (chosen.kind === "color") coverUri = await coverColorUri(COVER_COLORS[chosen.index].module);
+      if (!coverUri) return;
+      await backend.updateTrip(id, { coverUri });
+      // The server has the cover now: refresh the list to pick it up.
+      refreshTripList();
+    })().catch(() => undefined); // the trip exists either way; it keeps its local cover for now
   }
 
   const previewUri =
@@ -205,6 +239,9 @@ export default function NewTrip() {
             </Txt>
             <View style={[styles.field, { backgroundColor: c.surface }]}>
               <TextInput
+                ref={nameInput}
+                // Keyboard up as soon as the page opens.
+                autoFocus
                 value={name}
                 onChangeText={(t) => setName(t.slice(0, NAME_MAX))}
                 placeholder="Summer in Lisbon"
@@ -260,10 +297,10 @@ export default function NewTrip() {
                   { backgroundColor: c.surface },
                 ]}
               >
-                <Icon name="lock.fill" size={16} color={c.locked} />
-                <Txt variant="subhead" tone="secondary" style={{ flex: 1 }}>
+                <Icon name="lock.fill" size={18} color={c.text} />
+                <Txt variant="callout" style={{ flex: 1, lineHeight: 22 }}>
                   {plural(days, "day")}. Memories stay sealed until{" "}
-                  <Txt variant="subhead" style={{ fontWeight: "600" }}>
+                  <Txt variant="callout" style={{ fontWeight: "700" }}>
                     {formatRevealMoment(unlocksAt)}
                   </Txt>
                   , then unlock for everyone at once. Dates can’t be changed
@@ -298,6 +335,7 @@ export default function NewTrip() {
         <View style={page}>
           {reached >= 2 ? (
             <CoverStep
+              query={name}
               cover={cover}
               onCover={(next) => {
                 setCover(next);
@@ -429,12 +467,7 @@ function CoverPreview({
           { paddingBottom: insets.bottom + space.md },
         ]}
       >
-        <Button
-          title="Continue"
-          loading={saving}
-          onPress={onContinue}
-          style={{ backgroundColor: "#000" }}
-        />
+        <Button title="Continue" kind="dark" loading={saving} onPress={onContinue} style={{ backgroundColor: "#000" }} />
       </View>
     </Animated.View>
   );
@@ -485,22 +518,29 @@ function CoverStep({
   cover,
   onCover,
   unsplashEnabled,
+  query,
 }: {
   cover: Cover | null;
   onCover: (cover: Cover) => void;
   unsplashEnabled: boolean;
+  /** The trip name: photos that match it come first. */
+  query: string;
 }) {
   const router = useRouter();
   const c = useTheme();
   const [featured, setFeatured] = useState<UnsplashPhoto[] | null>(null);
   const [unsplashOff, setUnsplashOff] = useState(!unsplashEnabled);
 
+  // Photos for the trip's name (e.g. "Lisbon"), or popular ones if nothing matches.
+  const [searchFor] = useState(query.trim());
   useEffect(() => {
     if (!unsplashEnabled) return;
-    searchUnsplash()
-      .then((p) => setFeatured(p.slice(0, 12)))
-      .catch(() => setUnsplashOff(true)); // not configured or offline: hide the section
-  }, [unsplashEnabled]);
+    (async () => {
+      let photos = searchFor ? await searchUnsplash(searchFor) : [];
+      if (photos.length < 4) photos = await searchUnsplash();
+      setFeatured(photos.slice(0, 12));
+    })().catch(() => setUnsplashOff(true)); // not configured or offline: hide the section
+  }, [unsplashEnabled, searchFor]);
 
   // Photos picked on the search screen come back here.
   useEffect(() => {
@@ -560,7 +600,7 @@ function CoverStep({
             </Txt>
             <Button
               title="Search"
-              onPress={() => router.push("/trips/unsplash")}
+              onPress={() => router.push({ pathname: "/trips/unsplash", params: { q: searchFor } })}
               style={{ minHeight: 36, paddingHorizontal: space.lg }}
             />
           </View>
@@ -569,31 +609,24 @@ function CoverStep({
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: space.sm, paddingRight: space.lg }}
           >
-            {(featured ?? []).map((p) => {
-              const on = cover?.kind === "unsplash" && cover.photo.id === p.id;
-              return (
-                <Pressable
-                  key={p.id}
-                  onPress={withTap(() =>
-                    onCover({ kind: "unsplash", photo: p }),
-                  )}
-                  accessibilityRole="imagebutton"
-                  accessibilityLabel={`Photo by ${p.author}`}
-                  accessibilityState={{ selected: on }}
-                >
-                  <Image
-                    source={{ uri: p.thumb }}
-                    style={[
-                      styles.tile,
-                      { backgroundColor: p.color ?? c.background },
-                      ring(on),
-                    ]}
-                    contentFit="cover"
-                    transition={150}
-                  />
-                </Pressable>
-              );
-            })}
+            {featured == null
+              ? // Rippling placeholders while the photos load.
+                [0, 1, 2, 3].map((i) => <Skeleton key={i} width={110} height={150} rounded={16} order={i} />)
+              : featured.map((p, i) => {
+                  const on = cover?.kind === "unsplash" && cover.photo.id === p.id;
+                  return (
+                    <Pressable
+                      key={p.id}
+                      onPress={withTap(() => onCover({ kind: "unsplash", photo: p }))}
+                      accessibilityRole="imagebutton"
+                      accessibilityLabel={`Photo by ${p.author}`}
+                      accessibilityState={{ selected: on }}>
+                      {/* The ripple stays behind each photo until it has loaded. */}
+                      <Skeleton width={110} height={150} rounded={16} order={i} style={StyleSheet.absoluteFill} />
+                      <Image source={{ uri: p.thumb }} style={[styles.tile, ring(on)]} contentFit="cover" transition={200} />
+                    </Pressable>
+                  );
+                })}
           </ScrollView>
           {cover?.kind === "unsplash" ? (
             <Txt variant="caption" tone="tertiary">

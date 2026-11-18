@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { FlatList, Linking, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,7 +22,9 @@ export default function UnsplashSearch() {
   const c = useTheme();
   const insets = useSafeAreaInsets();
   const { width, gutter } = useLayout();
-  const [query, setQuery] = useState('');
+  const { q } = useLocalSearchParams<{ q?: string }>();
+  // Starts with the trip's name, so matching photos are there right away.
+  const [query, setQuery] = useState(q ?? '');
   const [photos, setPhotos] = useState<UnsplashPhoto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 

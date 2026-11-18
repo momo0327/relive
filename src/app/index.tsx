@@ -5,6 +5,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-n
 import { formatTripDates, plural } from '@/lib/format';
 import { syncTripNotifications } from '@/lib/notifications';
 import { useSession } from '@/lib/session';
+import { onTripListChange, takeTripListStale, withLocalCover } from '@/lib/trip-list';
 import { setTripPreview } from '@/lib/trip-preview';
 import type { TripSummary } from '@/lib/types';
 import { useLoad } from '@/lib/use-load';
@@ -19,7 +20,23 @@ export default function MyTrips() {
   const router = useRouter();
   const { backend, pendingInvite, setPendingInvite, mode } = useSession();
   const { gutter, contentWidth, tripColumns } = useLayout();
-  const { data, error, refreshing, reload } = useLoad(() => backend.listTrips(), { refocusAfterMs: 60_000 });
+  const {
+    data: loaded,
+    error,
+    refreshing,
+    reload,
+    setData,
+  } = useLoad(() => backend.listTrips(), { refocusAfterMs: 60_000, stale: takeTripListStale });
+  // Trips created, deleted or left elsewhere show up here instantly.
+  useEffect(
+    () =>
+      onTripListChange((edit) => {
+        if (edit) setData((prev) => (prev ? edit(prev) : prev));
+        else reload();
+      }),
+    [setData, reload],
+  );
+  const data = loaded ? loaded.map(withLocalCover) : null;
 
   // Keep this device's reminders and reveal alerts in step with the trip list.
   useEffect(() => {

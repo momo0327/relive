@@ -9,7 +9,10 @@ import { friendlyError } from './errors';
  * user-initiated reloads (pull to refresh, retry), so no spinner flashes when
  * returning to a screen.
  */
-export function useLoad<T>(load: () => Promise<T>, options: { refocusAfterMs?: number } = {}) {
+export function useLoad<T>(
+  load: () => Promise<T>,
+  options: { refocusAfterMs?: number; /** Reload on focus anyway when this returns true. */ stale?: () => boolean } = {},
+) {
   const lastLoaded = useRef(0);
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -37,9 +40,14 @@ export function useLoad<T>(load: () => Promise<T>, options: { refocusAfterMs?: n
   // On focus, refresh silently, unless it was loaded very recently (e.g.
   // coming back from the photo viewer), which would only re-render for nothing.
   const refocusAfterMs = options.refocusAfterMs ?? 0;
+  const staleRef = useRef(options.stale);
+  useLayoutEffect(() => {
+    staleRef.current = options.stale;
+  });
   useFocusEffect(
     useCallback(() => {
-      if (lastLoaded.current && Date.now() - lastLoaded.current < refocusAfterMs) return;
+      const forced = staleRef.current?.() ?? false;
+      if (!forced && lastLoaded.current && Date.now() - lastLoaded.current < refocusAfterMs) return;
       run(true);
     }, [run, refocusAfterMs]),
   );
