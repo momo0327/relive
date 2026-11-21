@@ -55,6 +55,29 @@ export function Skeleton({
   );
 }
 
+/**
+ * Busy state without a spinner: the content gently "breathes" (same rhythm as
+ * the skeleton ripple) while `active`. Used for buttons and icons that are working.
+ */
+export function Breathing({ active, children, style }: { active: boolean; children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
+  const { reduceMotion } = useA11yPrefs();
+  const glow = useSharedValue(1);
+  useEffect(() => {
+    if (!active) {
+      glow.value = withTiming(1, { duration: 150 });
+      return;
+    }
+    if (reduceMotion) {
+      glow.value = 0.5;
+      return;
+    }
+    const ease = Easing.inOut(Easing.quad);
+    glow.value = withRepeat(withSequence(withTiming(0.35, { duration: PULSE_MS, easing: ease }), withTiming(1, { duration: PULSE_MS, easing: ease })), -1);
+  }, [active, glow, reduceMotion]);
+  const animated = useAnimatedStyle(() => ({ opacity: glow.value }));
+  return <Animated.View style={[animated, style]}>{children}</Animated.View>;
+}
+
 /** Wrapper that announces loading once for a group of skeleton blocks. */
 export function SkeletonGroup({ label = 'Loading', style, children }: { label?: string; style?: StyleProp<ViewStyle>; children: React.ReactNode }) {
   return (

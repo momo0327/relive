@@ -9,7 +9,7 @@ import { pickUnsplash, searchUnsplash, type UnsplashPhoto } from '@/lib/unsplash
 import { haptic } from '@/ui/haptics';
 import { useLayout } from '@/ui/layout';
 import { IconButton, Txt } from '@/ui/primitives';
-import { SkeletonGrid } from '@/ui/skeleton';
+import { Skeleton, SkeletonGrid } from '@/ui/skeleton';
 import { MessageState } from '@/ui/states';
 import { radius, space, useTheme } from '@/ui/theme';
 
@@ -82,7 +82,7 @@ export default function UnsplashSearch() {
           contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: insets.bottom + space.xl, gap: GAP }}
           columnWrapperStyle={{ gap: GAP }}
           ListEmptyComponent={<MessageState icon="photo" title="No photos found" message="Try another search." />}
-          renderItem={({ item }) => (
+          renderItem={({ item, index }) => (
             <Pressable
               accessibilityRole="imagebutton"
               accessibilityLabel={`Photo by ${item.author}`}
@@ -92,12 +92,13 @@ export default function UnsplashSearch() {
                 router.back();
               }}
               style={({ pressed }) => ({ opacity: pressed ? 0.8 : 1 })}>
+              {/* Ripple until the photo has loaded. */}
+              <Skeleton width={tile} height={tile * 1.6} rounded={14} order={index % 6} style={StyleSheet.absoluteFill} />
               <Image
                 source={{ uri: item.thumb }}
-                placeholder={item.color ? { blurhash: undefined } : undefined}
-                style={[styles.tile, { width: tile, height: tile * 1.6, backgroundColor: item.color ?? c.surface }]}
+                style={[styles.tile, { width: tile, height: tile * 1.6 }]}
                 contentFit="cover"
-                transition={150}
+                transition={200}
               />
             </Pressable>
           )}

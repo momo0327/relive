@@ -1,15 +1,12 @@
 import { CameraView, useCameraPermissions, useMicrophonePermissions, type CameraType, type LensInfo } from 'expo-camera';
-import { File } from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
+import { Alert, Linking, Pressable, StyleSheet, View, type GestureResponderEvent } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FALLBACK_ZOOM, lensName, zoomLabel, zoomProp, zoomSetup, type ZoomSetup } from '@/lib/camera-zoom';
 import { limits } from '@/lib/config';
-import { takeRecorder } from '@/lib/take-recorder';
-import { canMergeClips, mergeClips } from '@/lib/video-merge';
 import { useLibraryPicker } from '@/lib/use-library-picker';
 import { CapturePreview, type Shot } from '@/screens/capture-preview';
 import { useA11yPrefs } from '@/ui/a11y';
@@ -40,11 +37,6 @@ export default function Capture() {
   // The shot being reviewed (Retake / Upload) before it joins the trip.
   const [shot, setShot] = useState<Shot | null>(null);
   const library = useLibraryPicker(tripId);
-  // Recording state machine (see take-recorder.ts).
-  const recorder = takeRecorder;
-  const [joining, setJoining] = useState(false);
-  // TEMPORARY camera diagnostics (remove once zoom is confirmed on device).
-  const [debugLenses, setDebugLenses] = useState<LensInfo[] | null>(null);
 
   // Zoom, in the phone's zoom factors (see camera-zoom.ts). Starts on the main (1x) lens.
   const [setup, setSetup] = useState<ZoomSetup>(FALLBACK_ZOOM);
@@ -111,55 +103,49 @@ export default function Capture() {
     }
   }
 
-  // One recording can span several clips (flipping mid-recording); they're
-  // joined into one video at the end. See take-recorder.ts / video-merge.ts.
-
-  function toggleRecording() {
-    if (!camera.current || !ready || joining) return;
-    if (recorder.recording) {
-      recorder.stop();
+  async function toggleRecording() {
+    if (!camera.current || !ready) return;
+    if (recordingSince != null) {
+      camera.current.stopRecording();
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => undefined);
-    recorder.start();
+    const started = Date.now();
+    setRecordingSince(started);
+    setElapsed(0);
+    try {
+      const result = await camera.current.recordAsync({
+        maxDuration: limits.maxVideoSeconds,
+        maxFileSize: limits.maxUploadBytes,
+      });
+      const durationMs = Math.min(Date.now() - started, limits.maxVideoSeconds * 1000);
+      if (result?.uri) setShot({ kind: 'video', uri: result.uri, durationMs });
+    } catch {
+      Alert.alert('Couldn’t record video', 'Please try again.');
+    } finally {
+      setRecordingSince(null);
+    }
   }
 
-  function resetForFlip() {
+  /** Front/back (not while recording). */
+  function flip() {
+    if (recordingSince != null) return;
+    haptic.tap();
     setSetup(FALLBACK_ZOOM);
     setZoom(1);
     setFacing((f) => (f === 'back' ? 'front' : 'back'));
   }
 
-  function flip() {
-    if (recorder.recording && !canMergeClips) return;
-    haptic.tap();
-    // Mid-recording the recorder ends the clip first, then switches camera.
-    if (!recorder.flip()) resetForFlip();
-  }
-
-  async function finishTake(clips: string[], durationMs: number) {
-    setRecordingSince(null);
-    if (clips.length === 0) {
-      Alert.alert('Couldn’t record video', 'Please try again.');
-      return;
-    }
-    if (clips.length === 1) {
-      setShot({ kind: 'video', uri: clips[0], durationMs });
-      return;
-    }
-    setJoining(true);
-    try {
-      const uri = await mergeClips(clips);
-      deleteFiles(clips);
-      setShot({ kind: 'video', uri, durationMs });
-    } catch {
-      // Keep what we can: the first clip.
-      deleteFiles(clips.slice(1));
-      setShot({ kind: 'video', uri: clips[0], durationMs });
-    } finally {
-      setJoining(false);
-    }
-  }
+  // The camera resets its zoom to the widest lens whenever it reconfigures
+  // (starting, Photo/Video, flipping), which made it show 0.5x while saying 1x.
+  // Re-send the zoom shortly after each of those. (Newer builds also re-apply
+  // it natively.) The tiny offset makes it a "new" value the camera applies.
+  const [zoomNudge, setZoomNudge] = useState(0);
+  useEffect(() => {
+    if (!ready || !setup.exact) return;
+    const timers = [250, 700, 1500].map((ms) => setTimeout(() => setZoomNudge((n) => n + 1), ms));
+    return () => timers.forEach(clearTimeout);
+  }, [ready, setup, mode, facing]);
 
   const [torchSettled, setTorchSettled] = useState(true);
   const torchWanted = mode === 'video' && flash === 'on' && facing === 'back';
@@ -172,20 +158,6 @@ export default function Capture() {
       clearTimeout(on);
     };
   }, [torchWanted, mode, facing, recordingSince]);
-
-  // Leaving the screen ends any recording.
-  useEffect(() => () => recorder.stop(), [recorder]);
-  useLayoutEffect(() => {
-    recorder.hooks = {
-      camera: () => camera.current,
-      switchCamera: resetForFlip,
-      onStart: (at) => {
-        setRecordingSince(at);
-        setElapsed(0);
-      },
-      onFinish: finishTake,
-    };
-  });
 
   // Pinch to zoom and double-tap to flip, on the viewfinder.
   const gesture = useRef({ pinch: null as null | { dist: number; zoom: number }, moved: false, multi: false, lastTap: 0 });
@@ -230,11 +202,9 @@ export default function Capture() {
   }));
 
   function applyLenses(lenses: LensInfo[]) {
-    setDebugLenses(lenses);
     const next = zoomSetup(lenses, facing);
     setSetup(next);
     setZoom(next.wide);
-    recorder.cameraSwitched();
   }
   /** Ask the camera for its lenses too (the change event alone was not always delivered). */
   function refreshLenses() {
@@ -296,9 +266,8 @@ export default function Capture() {
       accessibilityRole="button"
       accessibilityLabel={mode === 'picture' ? 'Take photo' : recording ? 'Stop recording' : 'Start recording'}
       onPress={mode === 'picture' ? takePhoto : toggleRecording}
-      disabled={!ready || joining}
+      disabled={!ready}
       style={({ pressed }) => [styles.shutter, { opacity: ready ? 1 : 0.4, transform: [{ scale: pressed ? 0.94 : 1 }] }]}>
-      {joining ? <ActivityIndicator color="#000" style={StyleSheet.absoluteFill} /> : null}
       <View
         style={[
           styles.shutterInner,
@@ -329,12 +298,9 @@ export default function Capture() {
       accessibilityRole="button"
       accessibilityLabel="Switch camera"
       accessibilityHint="You can also double-tap the viewfinder"
-      disabled={recording && !canMergeClips}
+      disabled={recording}
       onPress={flip}
-      style={({ pressed }) => [
-        styles.sideButton,
-        { borderRadius: 26, opacity: recording && !canMergeClips ? 0.35 : pressed ? 0.7 : 1 },
-      ]}>
+      style={({ pressed }) => [styles.sideButton, { borderRadius: 26, opacity: recording ? 0.35 : pressed ? 0.7 : 1 }]}>
       <Icon name="arrow.triangle.2.circlepath" size={22} color="#fff" />
     </Pressable>
   );
@@ -376,11 +342,11 @@ export default function Capture() {
             mode={mode}
             flash={mode === 'picture' ? flash : 'off'}
             // Re-sent after each reconfiguration (mode, flip, recording start), which turns the light off.
-          enableTorch={torch && torchSettled}
+            enableTorch={torch && torchSettled}
             mute={!!micDenied}
             videoQuality="720p"
             selectedLens={setup.lens}
-            zoom={zoomProp(zoom, setup)}
+            zoom={zoomProp(zoom, setup) + (setup.exact ? (zoomNudge % 2) * 1e-6 : 0)}
             onAvailableLensesChanged={({ lenses }) => applyLenses(lenses)}
             onCameraReady={() => {
               setReady(true);
@@ -391,17 +357,6 @@ export default function Capture() {
           />
           {flashShutter ? <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: 0.6 }]} /> : null}
           {ringLight ? <View pointerEvents="none" style={styles.ringLight} /> : null}
-          <View pointerEvents="none" style={styles.debug}>
-            <Txt variant="caption" style={{ color: '#0f0', fontSize: 10 }}>
-              {`dbg2 ${facing} exact=${setup.exact} lens=${(setup.lens ?? '-').replace('AVCaptureDeviceTypeBuiltIn', '')} wide=${setup.wide} min=${setup.min} max=${Math.round(setup.max)} stops=${setup.stops.join(',')} zoom=${zoom.toFixed(2)} prop=${zoomProp(zoom, setup).toFixed(2)} torch=${torch}\n${
-                debugLenses == null
-                  ? 'no lenses yet'
-                  : debugLenses
-                      .map((l) => `${l.deviceType.replace('AVCaptureDeviceTypeBuiltIn', '')}[${(l.switchOverZoomFactors ?? []).join('/')}|${l.minZoomFactor ?? '?'}-${l.maxZoomFactor != null ? Math.round(l.maxZoomFactor) : '?'}]`)
-                      .join(' ')
-              }`}
-            </Txt>
-          </View>
 
           {/* Close (left) and flash (right). */}
           <View
@@ -492,17 +447,6 @@ export default function Capture() {
   );
 }
 
-function deleteFiles(uris: string[]) {
-  for (const uri of uris) {
-    try {
-      const file = new File(uri);
-      if (file.exists) file.delete();
-    } catch {
-      // Already gone.
-    }
-  }
-}
-
 /** Eases the zoom from one factor to another (in log space, so 0.5x -> 1x feels like 1x -> 2x). Returns a cancel function. */
 function glide(from: number, to: number, apply: (z: number) => void) {
   let frame = 0;
@@ -518,8 +462,17 @@ function glide(from: number, to: number, apply: (z: number) => void) {
 }
 
 const styles = StyleSheet.create({
-  ringLight: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderWidth: 34, borderColor: '#FFFFFF', borderBottomLeftRadius: 36, borderBottomRightRadius: 36 },
-  debug: { position: 'absolute', left: 8, right: 8, top: 110, backgroundColor: 'rgba(0,0,0,0.6)', padding: 4 },
+  ringLight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: 34,
+    borderColor: '#FFFFFF',
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+  },
   permission: { flex: 1, backgroundColor: '#0B0B0F', padding: space.xl },
   top: {
     position: 'absolute',

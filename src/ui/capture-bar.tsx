@@ -1,8 +1,9 @@
 import type { SymbolViewProps } from 'expo-symbols';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { haptic } from './haptics';
+import { Breathing } from './skeleton';
 import { useLayout } from './layout';
 import { Glass, Icon } from './primitives';
 import { space, useTheme } from './theme';
@@ -32,7 +33,8 @@ export function CaptureBar({
     <View
       style={[styles.bar, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, space.lg) }]}
       pointerEvents="box-none">
-      <Glass interactive style={styles.pill}>
+      {/* Same grey-tinted glass as the home page's header buttons. */}
+      <Glass interactive tint={c.surface} style={styles.pill}>
         <PillButton icon="photo.fill.on.rectangle.fill" label="Upload" busy={uploading} onPress={onUpload} />
         <PillButton icon="person.fill.badge.plus" label="Invite" onPress={onInvite} />
       </Glass>
@@ -75,7 +77,9 @@ function PillButton({
         onPress();
       }}
       style={({ pressed }) => [styles.pillButton, pressed && { backgroundColor: c.border }]}>
-      {busy ? <ActivityIndicator color={c.text} /> : <Icon name={icon} size={26} color={c.text} />}
+      <Breathing active={!!busy}>
+        <Icon name={icon} size={26} color={c.text} />
+      </Breathing>
     </Pressable>
   );
 }

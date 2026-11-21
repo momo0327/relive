@@ -2,7 +2,6 @@ import { GlassView, isGlassEffectAPIAvailable } from 'expo-glass-effect';
 import { SymbolView, type SymbolViewProps } from 'expo-symbols';
 import type { ReactNode } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   Pressable,
   StyleSheet,
@@ -18,6 +17,7 @@ import {
 import { useA11yPrefs } from './a11y';
 import { haptic as tapHaptic, withTap } from './haptics';
 import { radius, space, useTheme } from './theme';
+import { Breathing } from './skeleton';
 
 // ---------------------------------------------------------------------------
 // Text
@@ -124,21 +124,18 @@ export function Button({ title, kind = 'primary', icon, loading, disabled, style
       }}
       style={({ pressed }) => [
         styles.button,
-        { backgroundColor: palette.bg, opacity: inactive ? 0.45 : pressed ? 0.75 : 1 },
+        { backgroundColor: palette.bg, opacity: disabled ? 0.45 : pressed ? 0.75 : 1 },
         kind === 'destructive' && { borderWidth: StyleSheet.hairlineWidth, borderColor: c.border },
         style,
       ]}
       {...rest}>
-      {loading ? (
-        <ActivityIndicator color={palette.fg} />
-      ) : (
-        <View style={styles.buttonRow}>
-          {icon ? <Icon name={icon} color={palette.fg} size={18} weight="semibold" /> : null}
-          <Txt variant="headline" style={{ color: palette.fg, textAlign: 'center', flexShrink: 1 }}>
-            {title}
-          </Txt>
-        </View>
-      )}
+      {/* Busy: the label breathes instead of a spinner. */}
+      <Breathing active={!!loading} style={styles.buttonRow}>
+        {icon ? <Icon name={icon} color={palette.fg} size={18} weight="semibold" /> : null}
+        <Txt variant="headline" style={{ color: palette.fg, textAlign: 'center', flexShrink: 1 }}>
+          {title}
+        </Txt>
+      </Breathing>
     </Pressable>
   );
 }
@@ -200,12 +197,15 @@ export function Glass({
   style,
   interactive = false,
   overMedia = false,
+  tint,
 }: {
   children?: ReactNode;
   style?: StyleProp<ViewStyle>;
   interactive?: boolean;
   /** Over photos/video/camera: always dark glass so white controls stay legible. */
   overMedia?: boolean;
+  /** Colour the glass (e.g. the app's grey, like the home header buttons). */
+  tint?: string;
 }) {
   const c = useTheme();
   const { reduceTransparency } = useA11yPrefs();
@@ -214,6 +214,7 @@ export function Glass({
       <GlassView
         glassEffectStyle="regular"
         colorScheme={overMedia ? 'dark' : 'auto'}
+        tintColor={tint}
         isInteractive={interactive}
         style={[{ borderRadius: radius.pill, overflow: 'hidden' }, style]}>
         {children}
@@ -225,7 +226,7 @@ export function Glass({
       style={[
         {
           borderRadius: radius.pill,
-          backgroundColor: overMedia ? 'rgba(28,28,34,0.94)' : c.surfaceRaised,
+          backgroundColor: overMedia ? 'rgba(28,28,34,0.94)' : (tint ?? c.surfaceRaised),
           borderWidth: StyleSheet.hairlineWidth,
           borderColor: overMedia ? 'rgba(255,255,255,0.18)' : c.border,
         },

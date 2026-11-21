@@ -111,7 +111,12 @@ export default function NewTrip() {
     try {
       // Create the trip itself first (one quick request) and open it at once;
       // the cover is prepared and uploaded in the background.
-      const id = await backend.createTrip({ name: name.trim(), startsAt: start, unlocksAt, coverUri: null });
+      const id = await backend.createTrip({
+        name: name.trim(),
+        startsAt: start,
+        unlocksAt,
+        coverUri: null,
+      });
       const now = new Date();
       const trip: TripSummary = {
         id,
@@ -145,8 +150,10 @@ export default function NewTrip() {
     (async () => {
       let coverUri: string | null = null;
       if (chosen.kind === "library") coverUri = chosen.uri;
-      if (chosen.kind === "unsplash") coverUri = await downloadUnsplash(chosen.photo);
-      if (chosen.kind === "color") coverUri = await coverColorUri(COVER_COLORS[chosen.index].module);
+      if (chosen.kind === "unsplash")
+        coverUri = await downloadUnsplash(chosen.photo);
+      if (chosen.kind === "color")
+        coverUri = await coverColorUri(COVER_COLORS[chosen.index].module);
       if (!coverUri) return;
       await backend.updateTrip(id, { coverUri });
       // The server has the cover now: refresh the list to pick it up.
@@ -180,13 +187,26 @@ export default function NewTrip() {
               accessibilityRole="button"
               accessibilityLabel="Back"
               hitSlop={8}
-              style={({ pressed }) => [styles.circle, { backgroundColor: c.text, opacity: pressed ? 0.75 : 1 }]}>
-              <Icon name="arrow.left" size={18} color={c.background} weight="semibold" />
+              style={({ pressed }) => [
+                styles.circle,
+                { backgroundColor: c.text, opacity: pressed ? 0.75 : 1 },
+              ]}
+            >
+              <Icon
+                name="arrow.left"
+                size={18}
+                color={c.background}
+                weight="semibold"
+              />
             </Pressable>
           ) : (
             <View style={{ width: 44 }} />
           )}
-          <Txt variant="headline" style={{ flex: 1, textAlign: 'center' }} accessibilityRole="header">
+          <Txt
+            variant="headline"
+            style={{ flex: 1, textAlign: "center" }}
+            accessibilityRole="header"
+          >
             {STEPS[step]}
           </Txt>
           {/* Close sits where the home page's + was, so it reads as "undo that tap". */}
@@ -195,7 +215,11 @@ export default function NewTrip() {
             accessibilityRole="button"
             accessibilityLabel="Close"
             hitSlop={8}
-            style={({ pressed }) => [styles.circle, { backgroundColor: '#FFFFFF', opacity: pressed ? 0.75 : 1 }]}>
+            style={({ pressed }) => [
+              styles.circle,
+              { backgroundColor: "#FFFFFF", opacity: pressed ? 0.75 : 1 },
+            ]}
+          >
             <Icon name="xmark" size={18} color="#0E0F10" weight="semibold" />
           </Pressable>
         </View>
@@ -402,13 +426,22 @@ function CoverPreview({
           style={StyleSheet.absoluteFill}
         />
       ) : previewUri ? (
-        <Image
-          source={{ uri: previewUri }}
-          style={StyleSheet.absoluteFill}
-          contentFit="cover"
-          transition={150}
-          accessibilityLabel="Cover preview"
-        />
+        <>
+          {/* Ripple while the full-size photo loads. */}
+          <Skeleton
+            height="100%"
+            width="100%"
+            rounded={0}
+            style={[StyleSheet.absoluteFill, { backgroundColor: "#1C1C1E" }]}
+          />
+          <Image
+            source={{ uri: previewUri }}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            transition={200}
+            accessibilityLabel="Cover preview"
+          />
+        </>
       ) : null}
 
       {/* Rule-of-thirds guides, like a camera framing grid. */}
@@ -467,7 +500,13 @@ function CoverPreview({
           { paddingBottom: insets.bottom + space.md },
         ]}
       >
-        <Button title="Continue" kind="dark" loading={saving} onPress={onContinue} style={{ backgroundColor: "#000" }} />
+        <Button
+          title="Continue"
+          kind="dark"
+          loading={saving}
+          onPress={onContinue}
+          style={{ backgroundColor: "#000" }}
+        />
       </View>
     </Animated.View>
   );
@@ -600,7 +639,12 @@ function CoverStep({
             </Txt>
             <Button
               title="Search"
-              onPress={() => router.push({ pathname: "/trips/unsplash", params: { q: searchFor } })}
+              onPress={() =>
+                router.push({
+                  pathname: "/trips/unsplash",
+                  params: { q: searchFor },
+                })
+              }
               style={{ minHeight: 36, paddingHorizontal: space.lg }}
             />
           </View>
@@ -611,19 +655,42 @@ function CoverStep({
           >
             {featured == null
               ? // Rippling placeholders while the photos load.
-                [0, 1, 2, 3].map((i) => <Skeleton key={i} width={110} height={150} rounded={16} order={i} />)
+                [0, 1, 2, 3].map((i) => (
+                  <Skeleton
+                    key={i}
+                    width={110}
+                    height={150}
+                    rounded={16}
+                    order={i}
+                  />
+                ))
               : featured.map((p, i) => {
-                  const on = cover?.kind === "unsplash" && cover.photo.id === p.id;
+                  const on =
+                    cover?.kind === "unsplash" && cover.photo.id === p.id;
                   return (
                     <Pressable
                       key={p.id}
-                      onPress={withTap(() => onCover({ kind: "unsplash", photo: p }))}
+                      onPress={withTap(() =>
+                        onCover({ kind: "unsplash", photo: p }),
+                      )}
                       accessibilityRole="imagebutton"
                       accessibilityLabel={`Photo by ${p.author}`}
-                      accessibilityState={{ selected: on }}>
+                      accessibilityState={{ selected: on }}
+                    >
                       {/* The ripple stays behind each photo until it has loaded. */}
-                      <Skeleton width={110} height={150} rounded={16} order={i} style={StyleSheet.absoluteFill} />
-                      <Image source={{ uri: p.thumb }} style={[styles.tile, ring(on)]} contentFit="cover" transition={200} />
+                      <Skeleton
+                        width={110}
+                        height={150}
+                        rounded={16}
+                        order={i}
+                        style={StyleSheet.absoluteFill}
+                      />
+                      <Image
+                        source={{ uri: p.thumb }}
+                        style={[styles.tile, ring(on)]}
+                        contentFit="cover"
+                        transition={200}
+                      />
                     </Pressable>
                   );
                 })}

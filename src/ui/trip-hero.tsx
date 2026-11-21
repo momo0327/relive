@@ -1,3 +1,4 @@
+import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -47,8 +48,15 @@ export function TripHeroScroll({
   onStuckChange,
   onScrollY,
   list,
+  immersive = false,
   children,
 }: {
+  /**
+   * Locked page look: the cover runs on behind the content, blurring and
+   * fading out gradually (instead of washing to the page colour right under
+   * the banner), so frosted cards can sit on it.
+   */
+  immersive?: boolean;
   /**
    * Virtualised list under the header (e.g. the gallery grid). `children`
    * then become the list's header, after the banner.
@@ -126,13 +134,26 @@ export function TripHeroScroll({
           style={StyleSheet.absoluteFill}
           pointerEvents="none"
         />
-        {/* Long, smooth fade into the page colour, starting high so there's no hard edge. */}
-        <LinearGradient
-          colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.35)', withAlpha(c.background, 0.75), c.background]}
-          locations={[0.25, 0.55, 0.86, 1]}
-          style={StyleSheet.absoluteFill}
-          pointerEvents="none"
-        />
+        {/* Revealed page: the photo as it is, no fade or blur. */}
+        {immersive ? (
+          // The cover continues below the banner, blurring more and more, then fades out.
+          <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 0, height: height + IMMERSIVE_EXTRA }}>
+            <Cover uri={trip.coverUrl} cacheKey={trip.coverKey} seed={trip.id} scrim={false} instant style={styles.fill} />
+            {BLUR_BANDS.map((band) => (
+              <BlurView
+                key={band.from}
+                intensity={band.intensity}
+                tint="default"
+                style={{ position: 'absolute', left: 0, right: 0, top: `${band.from * 100}%`, bottom: 0 }}
+              />
+            ))}
+            <LinearGradient
+              colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0)', withAlpha(c.background, 0.55), c.background]}
+              locations={[0, 0.18, 0.45, 0.8, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+          </View>
+        ) : null}
         {/* Name and dates are the header's title (crisp, see the trip screen); members sit just below. */}
         <View style={[styles.text, { top: insets.top + 50, left: 64, right: 64 }]}>
           <View
@@ -216,6 +237,20 @@ export function TripHeroScroll({
 }
 
 const NAV_BAR_HEIGHT = 54;
+/**
+ * Progressive blur without a mask: many thin layers, each starting a little
+ * lower and adding a little blur, so it builds up with no visible steps.
+ */
+function blurRamp(from: number, to: number, layers: number, total: number) {
+  return Array.from({ length: layers }, (_, i) => ({
+    from: from + ((to - from) * i) / layers,
+    intensity: total / layers,
+  }));
+}
+/** How far the immersive cover runs on below the banner. */
+const IMMERSIVE_EXTRA = 420;
+/** Locked page: blur building up from the middle of the banner to well below it. */
+const BLUR_BANDS = blurRamp(0.3, 0.8, 18, 45);
 // Reanimated scroll handler on a virtualised list.
 const AnimatedFlashList = Animated.createAnimatedComponent(FlashList as any) as any;
 

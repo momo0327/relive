@@ -12,7 +12,7 @@ import { useLoad } from '@/lib/use-load';
 import { useLayout } from '@/ui/layout';
 import { SkeletonCards } from '@/ui/skeleton';
 import { ErrorState, MessageState } from '@/ui/states';
-import { radius, space } from '@/ui/theme';
+import { radius, space, useTheme } from '@/ui/theme';
 import { TripPoster } from '@/ui/trip-poster';
 import { haptic, withTap } from '@/ui/haptics';
 
@@ -20,6 +20,8 @@ export default function MyTrips() {
   const router = useRouter();
   const { backend, pendingInvite, setPendingInvite, mode } = useSession();
   const { gutter, contentWidth, tripColumns } = useLayout();
+  // The app's grey (cards, fields), used as the tint of the header's glass buttons.
+  const c = useTheme();
   const {
     data: loaded,
     error,
@@ -55,18 +57,28 @@ export default function MyTrips() {
   const header = (
     <>
       <Stack.Toolbar placement="left">
-        <Stack.Toolbar.Button icon="person.crop.circle" accessibilityLabel="Settings" onPress={withTap(() => router.push('/account'))} />
+        <Stack.Toolbar.Button
+          icon="person.crop.circle"
+          variant="prominent"
+          tintColor={c.surface}
+          accessibilityLabel="Settings"
+          onPress={withTap(() => router.push('/account'))}
+        />
       </Stack.Toolbar>
       <Stack.Toolbar placement="right">
         <Stack.Toolbar.Button
           icon="link"
           separateBackground
+          variant="prominent"
+          tintColor={c.surface}
           accessibilityLabel="Join a trip with a link"
           onPress={withTap(() => router.push('/join-link'))}
         />
         <Stack.Toolbar.Button
           icon="plus"
           separateBackground
+          variant="prominent"
+          tintColor={c.surface}
           accessibilityLabel="New trip"
           onPress={withTap(() => router.push('/trips/new'))}
         />

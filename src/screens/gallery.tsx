@@ -6,7 +6,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
-  ActivityIndicator,
   Platform,
   PlatformColor,
   Pressable,
@@ -29,7 +28,7 @@ import { useA11yPrefs } from '@/ui/a11y';
 import { useLayout } from '@/ui/layout';
 import { HERO_OVERLAP, TripHeroScroll } from '@/ui/trip-hero';
 import { Icon, Row, Txt } from '@/ui/primitives';
-import { SkeletonGrid } from '@/ui/skeleton';
+import { Breathing, SkeletonGrid } from '@/ui/skeleton';
 import { ErrorState, MessageState } from '@/ui/states';
 import { radius, space, useTheme } from '@/ui/theme';
 import { haptic, withTap } from '@/ui/haptics';
@@ -286,10 +285,11 @@ function ExportBar({
       <View accessible accessibilityLabel={label} style={{ alignSelf: 'center' }}>
         <GlassPill>
           <Row gap={space.sm} style={styles.exportInner}>
-            <ActivityIndicator color={dark} />
-            <Txt variant="headline" style={{ color: dark }}>
-              {label}
-            </Txt>
+            <Breathing active>
+              <Txt variant="headline" style={{ color: dark }}>
+                {label}
+              </Txt>
+            </Breathing>
           </Row>
         </GlassPill>
       </View>

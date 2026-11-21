@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 
 const file = 'node_modules/expo-camera/ios/Current/CameraSessionManager.swift';
 const source = readFileSync(file, 'utf8');
-if (!source.includes('Relive: values of 1 or more are an exact zoom factor')) {
+if (!source.includes('Relive: values of 1 or more are an exact zoom factor') || !source.includes('reapplyZoomAndTorch')) {
   console.error(`patches/expo-camera patch is NOT applied (${file}). Run "npx patch-package" and check the patch matches.`);
   process.exit(1);
 }

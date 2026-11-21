@@ -1,7 +1,8 @@
 import { useIsFocused, useRouter } from 'expo-router';
 import type { SymbolViewProps } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { Alert, RefreshControl, StyleSheet, View } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { Alert, RefreshControl, StyleSheet, View, type ViewProps } from 'react-native';
 
 import { formatBytes, formatDuration, formatRevealMoment, plural, splitDuration, spokenDuration } from '@/lib/format';
 import type { TripDetail } from '@/lib/types';
@@ -49,6 +50,8 @@ export function LockedTripView({
     <View style={{ flex: 1 }}>
       <TripHeroScroll
         trip={trip}
+        // The cover runs on behind the frosted cards, blurring and fading out.
+        immersive
         onInvite={() => router.push(`/trips/${trip.id}/invite`)}
         refreshControl={
           <RefreshControl
@@ -62,8 +65,8 @@ export function LockedTripView({
         }
         contentContainerStyle={{ alignItems: 'center', paddingBottom: CAPTURE_BAR_SPACE }}>
         <View style={{ width: readableWidth, gap: space.lg }}>
-          <View style={[styles.panel, { backgroundColor: c.surface, borderColor: c.border }]}>
-            <View style={[styles.lockBadge, { backgroundColor: c.background }]}>
+          <Frosted style={styles.panel}>
+            <View style={[styles.lockBadge, { backgroundColor: inset(c.scheme) }]}>
               <Icon name="lock.fill" size={30} color={c.text} />
             </View>
             <View style={{ gap: space.sm, alignItems: 'center' }}>
@@ -75,7 +78,7 @@ export function LockedTripView({
               </Txt>
             </View>
             <CountdownBoxes unlocksAt={trip.unlocksAt} onElapsed={onCountdownElapsed} />
-          </View>
+          </Frosted>
 
           <Row gap={space.md} style={{ flexWrap: 'wrap' }}>
             <StatPill icon="photo.stack" value={trip.memoryCount} label={trip.memoryCount === 1 ? 'Memory' : 'Memories'} />
@@ -116,7 +119,7 @@ function CountdownBoxes({ unlocksAt, onElapsed }: { unlocksAt: Date; onElapsed: 
   return (
     <View style={{ flexDirection: 'row', gap: space.sm, alignSelf: 'stretch' }} accessible accessibilityRole="timer" accessibilityLabel={`Unlocks in ${spokenDuration(parts)}`}>
       {units.map(([value, unit]) => (
-        <View key={unit} style={[styles.countBox, { backgroundColor: c.background }]}>
+        <View key={unit} style={[styles.countBox, { backgroundColor: inset(c.scheme) }]}>
           <Txt variant="title" maxFontSizeMultiplier={1.3} style={{ fontVariant: ['tabular-nums'] }}>
             {value}
           </Txt>
@@ -132,11 +135,8 @@ function CountdownBoxes({ unlocksAt, onElapsed }: { unlocksAt: Date; onElapsed: 
 function StatPill({ icon, value, label }: { icon: SymbolViewProps['name']; value: number; label: string }) {
   const c = useTheme();
   return (
-    <View
-      accessible
-      accessibilityLabel={`${value} ${label}`}
-      style={[styles.statPill, { backgroundColor: c.surface, borderColor: c.border }]}>
-      <View style={[styles.statIcon, { backgroundColor: c.background }]}>
+    <Frosted accessible accessibilityLabel={`${value} ${label}`} style={styles.statPill}>
+      <View style={[styles.statIcon, { backgroundColor: inset(c.scheme) }]}>
         <Icon name={icon} size={18} color={c.text} />
       </View>
       <View>
@@ -147,8 +147,27 @@ function StatPill({ icon, value, label }: { icon: SymbolViewProps['name']; value
           {label}
         </Txt>
       </View>
-    </View>
+    </Frosted>
   );
+}
+
+/** Frosted, tinted glass over the blurred cover (the locked page's cards). */
+function Frosted({ style, children, ...rest }: ViewProps) {
+  const c = useTheme();
+  return (
+    <BlurView
+      {...rest}
+      intensity={60}
+      tint={c.scheme === 'dark' ? 'systemThinMaterialDark' : 'systemThinMaterialLight'}
+      style={[style, { overflow: 'hidden', borderColor: c.scheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.6)' }]}>
+      {children}
+    </BlurView>
+  );
+}
+
+/** Lighter glass inside a frosted card (lock badge, countdown boxes, icons). */
+function inset(scheme: 'light' | 'dark') {
+  return scheme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.6)';
 }
 
 function UploadPanel({

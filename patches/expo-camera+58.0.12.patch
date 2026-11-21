@@ -29,10 +29,50 @@ index c0233da..8469e28 100644
 +  @Field var maxZoomFactor: Double = 1
  }
 diff --git a/node_modules/expo-camera/ios/Current/CameraSessionManager.swift b/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
-index 9ac259a..175a0a3 100644
+index 9ac259a..77fcefb 100644
 --- a/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
 +++ b/node_modules/expo-camera/ios/Current/CameraSessionManager.swift
-@@ -218,7 +218,13 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+@@ -64,6 +64,8 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+         session.sessionPreset = preset
+         if withSessionConfiguration {
+           session.commitConfiguration()
++          // Relive: committing a configuration resets zoom and torch; apply them again.
++          reapplyZoomAndTorch()
+         }
+       }
+     } else {
+@@ -74,6 +76,8 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+         session.sessionPreset = .high
+         if withSessionConfiguration {
+           session.commitConfiguration()
++          // Relive: committing a configuration resets zoom and torch; apply them again.
++          reapplyZoomAndTorch()
+         }
+       }
+     }
+@@ -150,6 +154,8 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     defer {
+       if withSessionConfiguration {
+         session.commitConfiguration()
++        // Relive: committing a configuration resets zoom and torch; apply them again.
++        reapplyZoomAndTorch()
+       }
+     }
+ 
+@@ -210,6 +216,12 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     }
+   }
+ 
++  // Relive: called after every session reconfiguration.
++  private func reapplyZoomAndTorch() {
++    updateZoom()
++    enableTorch()
++  }
++
+   func updateZoom() {
+     guard let device = captureDeviceInput?.device, let delegate else {
+       return
+@@ -218,7 +230,13 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
      do {
        try device.lockForConfiguration()
        defer { device.unlockForConfiguration() }
@@ -47,7 +87,7 @@ index 9ac259a..175a0a3 100644
      } catch {
        log.info("\(#function): \(error.localizedDescription)")
      }
-@@ -236,7 +242,13 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+@@ -236,7 +254,13 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
      // Lens ordering can be varied which causes problems if you keep the result in react state.
      // We sort them to provide a stable ordering
      return availableLenses
@@ -62,3 +102,48 @@ index 9ac259a..175a0a3 100644
        .sorted { $0.deviceType < $1.deviceType }
    }
  
+@@ -248,6 +272,8 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     defer {
+       if withSessionConfiguration {
+         session.commitConfiguration()
++        // Relive: committing a configuration resets zoom and torch; apply them again.
++        reapplyZoomAndTorch()
+       }
+     }
+     if session.canAddOutput(output) {
+@@ -266,6 +292,8 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     defer {
+       if withSessionConfiguration {
+         session.commitConfiguration()
++        // Relive: committing a configuration resets zoom and torch; apply them again.
++        reapplyZoomAndTorch()
+       }
+     }
+     if session.outputs.contains(videoFileOutput) {
+@@ -298,6 +326,8 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+       session.removeOutput(output)
+     }
+     session.commitConfiguration()
++    // Relive: committing a configuration resets zoom and torch; apply them again.
++    reapplyZoomAndTorch()
+   }
+ 
+   func addErrorNotification() {
+@@ -355,6 +385,8 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     session.beginConfiguration()
+     defer {
+       session.commitConfiguration()
++      // Relive: committing a configuration resets zoom and torch; apply them again.
++      reapplyZoomAndTorch()
+       delegate.emitAvailableLenses()
+       delegate.configurePreviewRotation()
+     }
+@@ -428,6 +460,8 @@ class CameraSessionManager: NSObject, DeviceDiscoveryDelegate {
+     configureResponsiveCapture(photoOutput)
+ 
+     session.commitConfiguration()
++    // Relive: committing a configuration resets zoom and torch; apply them again.
++    reapplyZoomAndTorch()
+     addErrorNotification()
+     delegate.configurePreviewRotation()
+     delegate.barcodeScanner?.maybeStartBarcodeScanning()
