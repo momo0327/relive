@@ -11,7 +11,7 @@ import { useLayout } from '@/ui/layout';
 import { CAPTURE_BAR_SPACE, CaptureBar } from '@/ui/capture-bar';
 import { TripHeroScroll } from '@/ui/trip-hero';
 import { Button, Card, Icon, Row, Txt } from '@/ui/primitives';
-import { lockedCardColors, radius, space, useTheme } from '@/ui/theme';
+import { lockedCardColors, lockedPageColor, radius, space, useTheme } from '@/ui/theme';
 import { useCountdown } from '@/ui/trip-visuals';
 
 export function LockedTripView({
@@ -46,7 +46,7 @@ export function LockedTripView({
   }, [active, done, failed, focused, clearDone, onReload, router, trip.id]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: lockedPageColor(c.scheme, c.background) }}>
       <TripHeroScroll
         trip={trip}
         // The cover runs on behind the frosted cards, blurring and fading out.

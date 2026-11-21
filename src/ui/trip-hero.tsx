@@ -21,7 +21,7 @@ import type { TripDetail } from '@/lib/types';
 
 import { useLayout } from './layout';
 import { MembersRow, MembersRowSkeleton } from './members-row';
-import { space, useTheme } from './theme';
+import { lockedPageColor, space, useTheme } from './theme';
 import { Cover } from './trip-visuals';
 
 /** Height of the part of the banner that the page content overlaps. */
@@ -249,6 +249,8 @@ const BLUR_SCALE = 10;
  */
 function ImmersiveCover({ trip, width, height }: { trip: TripDetail; width: number; height: number }) {
   const c = useTheme();
+  // Fades into the locked page's colour.
+  const page = lockedPageColor(c.scheme, c.background);
   const source = trip.coverUrl ? { uri: trip.coverUrl, cacheKey: trip.coverKey ?? undefined } : null;
   const step = (FADE_TO - FADE_FROM) / FADE_STEPS;
   return (
@@ -305,7 +307,7 @@ function ImmersiveCover({ trip, width, height }: { trip: TripDetail; width: numb
         <Cover uri={null} cacheKey={null} seed={trip.id} scrim={false} instant style={StyleSheet.absoluteFill} />
       )}
       <LinearGradient
-        colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0)', withAlpha(c.background, 0.6), c.background]}
+        colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0)', withAlpha(page, 0.6), page]}
         locations={[0, 0.22, 0.55, 0.82, 1]}
         style={StyleSheet.absoluteFill}
       />

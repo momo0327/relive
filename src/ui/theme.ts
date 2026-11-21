@@ -67,3 +67,8 @@ export function lockedCardColors(scheme: 'light' | 'dark', strong = false) {
     borderColor: dark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.7)',
   };
 }
+
+/** Page colour of a locked trip (a soft grey in light mode instead of white). */
+export function lockedPageColor(scheme: 'light' | 'dark', background: string) {
+  return scheme === 'light' ? '#E7E7EE' : background;
+}
