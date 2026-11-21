@@ -1,5 +1,5 @@
-import { Link, Stack, useRouter } from 'expo-router';
-import { memo, useEffect } from 'react';
+import { Link, Stack, useNavigation, useRouter } from 'expo-router';
+import { memo, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { formatTripDates, plural } from '@/lib/format';
@@ -41,6 +41,36 @@ export default function MyTrips() {
     [setData, refresh],
   );
   const data = loaded ? loaded.map(withLocalCover) : null;
+
+  // Like Photos: while a closing trip's card is flying back into the list
+  // (iOS's zoom animation, ~0.45 s, measured from a screen recording), the list
+  // doesn't scroll. iOS animates the card to where it was when closing began,
+  // so scrolling during the flight made it land on top of other cards. The
+  // pause starts when the trip page starts closing and ends as the card lands.
+  // (iOS's own "transition ended" signal arrives at the start of the zoom, so
+  // it can't be used here.)
+  const navigation = useNavigation();
+  const [cardFlying, setCardFlying] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let wasAway = false;
+    const offBlur = navigation.addListener('blur', () => {
+      wasAway = true;
+    });
+    const offFocus = navigation.addListener('focus', () => {
+      // Only when coming back to the list, not when the app first opens.
+      if (!wasAway) return;
+      wasAway = false;
+      setCardFlying(true);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setCardFlying(false), CARD_FLIGHT_MS);
+    });
+    return () => {
+      if (timer) clearTimeout(timer);
+      offBlur();
+      offFocus();
+    };
+  }, [navigation]);
 
 
   // Keep this device's reminders and reveal alerts in step with the trip list.
@@ -123,6 +153,7 @@ export default function MyTrips() {
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
+        scrollEnabled={!cardFlying}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} />}
         contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: space.xxxl, alignItems: 'center' }}>
         <View style={{ width: contentWidth, gap: space.xl, paddingTop: space.md }}>
@@ -147,6 +178,9 @@ export default function MyTrips() {
     </>
   );
 }
+
+/** How long iOS's zoom-back animation takes to land the card (from a recording). */
+const CARD_FLIGHT_MS = 450;
 
 // Redrawn only when what the card shows changes, so returning home (or a
 // background refresh) doesn't re-lay out the cards under the zoom-back animation.
