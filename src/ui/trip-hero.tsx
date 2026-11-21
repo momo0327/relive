@@ -1,4 +1,4 @@
-import { BlurView } from 'expo-blur';
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Link } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -135,25 +135,7 @@ export function TripHeroScroll({
           pointerEvents="none"
         />
         {/* Revealed page: the photo as it is, no fade or blur. */}
-        {immersive ? (
-          // The cover continues below the banner, blurring more and more, then fades out.
-          <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 0, height: height + IMMERSIVE_EXTRA }}>
-            <Cover uri={trip.coverUrl} cacheKey={trip.coverKey} seed={trip.id} scrim={false} instant style={styles.fill} />
-            {BLUR_BANDS.map((band) => (
-              <BlurView
-                key={band.from}
-                intensity={band.intensity}
-                tint="default"
-                style={{ position: 'absolute', left: 0, right: 0, top: `${band.from * 100}%`, bottom: 0 }}
-              />
-            ))}
-            <LinearGradient
-              colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0)', withAlpha(c.background, 0.55), c.background]}
-              locations={[0, 0.18, 0.45, 0.8, 1]}
-              style={StyleSheet.absoluteFill}
-            />
-          </View>
-        ) : null}
+        {immersive ? <ImmersiveCover trip={trip} height={height + IMMERSIVE_EXTRA} /> : null}
         {/* Name and dates are the header's title (crisp, see the trip screen); members sit just below. */}
         <View style={[styles.text, { top: insets.top + 50, left: 64, right: 64 }]}>
           <View
@@ -237,20 +219,75 @@ export function TripHeroScroll({
 }
 
 const NAV_BAR_HEIGHT = 54;
-/**
- * Progressive blur without a mask: many thin layers, each starting a little
- * lower and adding a little blur, so it builds up with no visible steps.
- */
-function blurRamp(from: number, to: number, layers: number, total: number) {
-  return Array.from({ length: layers }, (_, i) => ({
-    from: from + ((to - from) * i) / layers,
-    intensity: total / layers,
-  }));
-}
 /** How far the immersive cover runs on below the banner. */
-const IMMERSIVE_EXTRA = 420;
-/** Locked page: blur building up from the middle of the banner to well below it. */
-const BLUR_BANDS = blurRamp(0.3, 0.8, 18, 45);
+const IMMERSIVE_EXTRA = 160;
+/** The sharp photo fades into the blurred copy over this range (fractions of the height), in thin steps. */
+const FADE_FROM = 0.4;
+const FADE_TO = 0.72;
+const FADE_STEPS = 10;
+
+/**
+ * Locked page background: the cover, blurring out as it runs down behind the
+ * cards and fading into the page. Built from plain images (a blurred copy,
+ * blurred once when decoded, with the sharp photo fading into it in thin
+ * slices) instead of live blur layers, so opening and closing stay fast.
+ */
+function ImmersiveCover({ trip, height }: { trip: TripDetail; height: number }) {
+  const c = useTheme();
+  const source = trip.coverUrl ? { uri: trip.coverUrl, cacheKey: trip.coverKey ?? undefined } : null;
+  const step = (FADE_TO - FADE_FROM) / FADE_STEPS;
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: 0, height, overflow: 'hidden' }}>
+      {source ? (
+        <>
+          <Image
+            source={source}
+            blurRadius={28}
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={0}
+          />
+          {[
+            { top: 0, size: FADE_FROM, opacity: 1 },
+            ...Array.from({ length: FADE_STEPS }, (_, i) => ({
+              top: FADE_FROM + step * i,
+              size: step,
+              opacity: 1 - (i + 1) / (FADE_STEPS + 1),
+            })),
+          ].map((slice) => (
+            <View
+              key={slice.top}
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                top: slice.top * height,
+                height: slice.size * height + 1,
+                overflow: 'hidden',
+                opacity: slice.opacity,
+              }}>
+              <Image
+                source={source}
+                style={{ position: 'absolute', left: 0, right: 0, top: -slice.top * height, height }}
+                contentFit="cover"
+                cachePolicy="memory-disk"
+                transition={0}
+              />
+            </View>
+          ))}
+        </>
+      ) : (
+        <Cover uri={null} cacheKey={null} seed={trip.id} scrim={false} instant style={StyleSheet.absoluteFill} />
+      )}
+      <LinearGradient
+        colors={['rgba(0,0,0,0.5)', 'rgba(0,0,0,0)', 'rgba(0,0,0,0)', withAlpha(c.background, 0.6), c.background]}
+        locations={[0, 0.22, 0.55, 0.82, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+    </View>
+  );
+}
 // Reanimated scroll handler on a virtualised list.
 const AnimatedFlashList = Animated.createAnimatedComponent(FlashList as any) as any;
 

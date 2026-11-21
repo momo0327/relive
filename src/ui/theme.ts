@@ -55,3 +55,15 @@ export function useTheme(): Palette {
 
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24, xxl: 32, xxxl: 48 } as const;
 export const radius = { sm: 10, md: 16, lg: 24, xl: 32, pill: 999 } as const;
+
+/**
+ * Tinted glass of the locked page's cards (Memories / Members pills, the
+ * Upload / Invite pill). `strong` is the main "Memories locked" card.
+ */
+export function lockedCardColors(scheme: 'light' | 'dark', strong = false) {
+  const dark = scheme === 'dark';
+  return {
+    backgroundColor: dark ? `rgba(28,28,30,${strong ? 0.78 : 0.55})` : `rgba(255,255,255,${strong ? 0.75 : 0.5})`,
+    borderColor: dark ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.7)',
+  };
+}

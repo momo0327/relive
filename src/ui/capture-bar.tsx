@@ -5,8 +5,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { haptic } from './haptics';
 import { Breathing } from './skeleton';
 import { useLayout } from './layout';
-import { Glass, Icon } from './primitives';
-import { space, useTheme } from './theme';
+import { Icon } from './primitives';
+import { lockedCardColors, space, useTheme } from './theme';
 
 /** Height to leave free at the bottom of scrolling content above the bar. */
 export const CAPTURE_BAR_SPACE = 128;
@@ -33,11 +33,18 @@ export function CaptureBar({
     <View
       style={[styles.bar, { paddingHorizontal: gutter, paddingBottom: Math.max(insets.bottom, space.lg) }]}
       pointerEvents="box-none">
-      {/* Same grey-tinted glass as the home page's header buttons. */}
-      <Glass interactive tint={c.surface} style={styles.pill}>
+      {/* Same tinted glass as the Memories / Members pills above it. */}
+      <View
+        style={[
+          styles.pill,
+          styles.pillBorder,
+          lockedCardColors(c.scheme),
+          // A soft shadow so it floats above the page.
+          { shadowOpacity: c.scheme === 'dark' ? 0.45 : 0.14 },
+        ]}>
         <PillButton icon="photo.fill.on.rectangle.fill" label="Upload" busy={uploading} onPress={onUpload} />
         <PillButton icon="person.fill.badge.plus" label="Invite" onPress={onInvite} />
-      </Glass>
+      </View>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Camera"
@@ -94,6 +101,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: space.md,
+  },
+  pillBorder: {
+    borderWidth: StyleSheet.hairlineWidth,
+    shadowColor: '#000',
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
   },
   pill: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, height: 68, padding: 4, gap: 2 },
   pillButton: { alignItems: 'center', justifyContent: 'center', width: 76, height: 60, borderRadius: 30 },

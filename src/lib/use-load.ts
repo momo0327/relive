@@ -9,6 +9,9 @@ import { friendlyError } from './errors';
  * user-initiated reloads (pull to refresh, retry), so no spinner flashes when
  * returning to a screen.
  */
+/** Long enough for a screen transition to finish. */
+const REFOCUS_DELAY_MS = 650;
+
 export function useLoad<T>(
   load: () => Promise<T>,
   options: { refocusAfterMs?: number; /** Reload on focus anyway when this returns true. */ stale?: () => boolean } = {},
@@ -36,6 +39,8 @@ export function useLoad<T>(
   }, []);
 
   const reload = useCallback(() => run(false), [run]);
+  /** Refresh without the pull-to-refresh spinner (background updates). */
+  const refresh = useCallback(() => run(true), [run]);
 
   // On focus, refresh silently, unless it was loaded very recently (e.g.
   // coming back from the photo viewer), which would only re-render for nothing.
@@ -48,9 +53,17 @@ export function useLoad<T>(
     useCallback(() => {
       const forced = staleRef.current?.() ?? false;
       if (!forced && lastLoaded.current && Date.now() - lastLoaded.current < refocusAfterMs) return;
-      run(true);
+      // First load right away; refreshes on returning to a screen wait until the
+      // transition back (e.g. a card zooming home) has finished, so the page
+      // doesn't re-lay out underneath the animation.
+      if (!lastLoaded.current) {
+        run(true);
+        return;
+      }
+      const timer = setTimeout(() => run(true), REFOCUS_DELAY_MS);
+      return () => clearTimeout(timer);
     }, [run, refocusAfterMs]),
   );
 
-  return { data, error, refreshing, reload, setData };
+  return { data, error, refreshing, reload, refresh, setData };
 }

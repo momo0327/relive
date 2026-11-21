@@ -1,5 +1,5 @@
-import { Link, Stack, useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { Link, Stack, useFocusEffect, useRouter } from 'expo-router';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { formatTripDates, plural } from '@/lib/format';
@@ -27,6 +27,7 @@ export default function MyTrips() {
     error,
     refreshing,
     reload,
+    refresh,
     setData,
   } = useLoad(() => backend.listTrips(), { refocusAfterMs: 60_000, stale: takeTripListStale });
   // Trips created, deleted or left elsewhere show up here instantly.
@@ -34,11 +35,25 @@ export default function MyTrips() {
     () =>
       onTripListChange((edit) => {
         if (edit) setData((prev) => (prev ? edit(prev) : prev));
-        else reload();
+        // Background refresh: silent, never the pull-to-refresh spinner.
+        else refresh();
       }),
-    [setData, reload],
+    [setData, refresh],
   );
   const data = loaded ? loaded.map(withLocalCover) : null;
+
+  // After a trip's zoom-back animation, rebuild that one card so no leftover
+  // transition state keeps it moving separately from the others when scrolling.
+  // (Its image is already in memory, so nothing visibly changes.)
+  const [settled, setSettled] = useState({ id: '', round: 0 });
+  useFocusEffect(
+    useCallback(() => {
+      const id = lastOpenedTrip;
+      if (!id) return;
+      const timer = setTimeout(() => setSettled((s) => ({ id, round: s.round + 1 })), 700);
+      return () => clearTimeout(timer);
+    }, []),
+  );
 
   // Keep this device's reminders and reveal alerts in step with the trip list.
   useEffect(() => {
@@ -83,7 +98,6 @@ export default function MyTrips() {
           onPress={withTap(() => router.push('/trips/new'))}
         />
       </Stack.Toolbar>
-
     </>
   );
 
@@ -94,7 +108,10 @@ export default function MyTrips() {
         {error ? (
           <ErrorState message={error} onRetry={reload} />
         ) : (
-          <ScrollView contentInsetAdjustmentBehavior="automatic" scrollEnabled={false} contentContainerStyle={{ alignItems: 'center', paddingTop: space.md }}>
+          <ScrollView
+            contentInsetAdjustmentBehavior="automatic"
+            scrollEnabled={false}
+            contentContainerStyle={{ alignItems: 'center', paddingTop: space.md }}>
             <SkeletonCards width={contentWidth} />
           </ScrollView>
         )}
@@ -133,7 +150,7 @@ export default function MyTrips() {
           ) : (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.lg }}>
               {trips.map((trip) => (
-                <TripCard key={trip.id} trip={trip} width={cardWidth} />
+                <TripCard key={trip.id === settled.id ? `${trip.id}-${settled.round}` : trip.id} trip={trip} width={cardWidth} />
               ))}
             </View>
           )}
@@ -143,41 +160,61 @@ export default function MyTrips() {
   );
 }
 
-function TripCard({ trip, width }: { trip: TripSummary; width: number }) {
-  const a11y = [
-    trip.name,
-    formatTripDates(trip.startsAt, trip.unlocksAt),
-    trip.status === 'revealed' ? 'Revealed' : 'Locked',
-    plural(trip.memoryCount, 'memory', 'memories'),
-  ].join(', ');
+/** The card that was opened last (its zoom transition comes back to it). */
+let lastOpenedTrip = '';
 
-  // iOS zoom transition: the card grows to fill the screen and settles into the
-  // trip page's banner (Link.AppleZoomTarget in TripHero).
-  return (
-    <Link
-      href={`/trips/${trip.id}`}
-      asChild
-      onPress={() => {
-        haptic.tap();
-        setTripPreview(trip);
-      }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={a11y} style={{ width }}>
-        <Link.AppleZoom>
-          <View style={styles.zoomSource}>
-            <TripPoster
-              name={trip.name}
-              coverUrl={trip.coverUrl}
-              coverKey={trip.coverKey}
-              tone={trip.coverTone}
-              seed={trip.id}
-              createdAt={trip.createdAt}
-            />
-          </View>
-        </Link.AppleZoom>
-      </Pressable>
-    </Link>
-  );
-}
+// Redrawn only when what the card shows changes, so returning home (or a
+// background refresh) doesn't re-lay out the cards under the zoom-back animation.
+const TripCard = memo(
+  function TripCard({ trip, width }: { trip: TripSummary; width: number }) {
+    const a11y = [
+      trip.name,
+      formatTripDates(trip.startsAt, trip.unlocksAt),
+      trip.status === 'revealed' ? 'Revealed' : 'Locked',
+      plural(trip.memoryCount, 'memory', 'memories'),
+    ].join(', ');
+
+    // iOS zoom transition: the card grows to fill the screen and settles into the
+    // trip page's banner (Link.AppleZoomTarget in TripHero).
+    return (
+      <Link
+        href={`/trips/${trip.id}`}
+        asChild
+        onPress={() => {
+          haptic.tap();
+          setTripPreview(trip);
+          lastOpenedTrip = trip.id;
+        }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={a11y} style={{ width }}>
+          <Link.AppleZoom>
+            <View style={styles.zoomSource}>
+              <TripPoster
+                name={trip.name}
+                coverUrl={trip.coverUrl}
+                coverKey={trip.coverKey}
+                tone={trip.coverTone}
+                seed={trip.id}
+                createdAt={trip.createdAt}
+              />
+            </View>
+          </Link.AppleZoom>
+        </Pressable>
+      </Link>
+    );
+  },
+  (a, b) =>
+    a.width === b.width &&
+    a.trip.id === b.trip.id &&
+    a.trip.name === b.trip.name &&
+    a.trip.coverUrl?.split('?')[0] === b.trip.coverUrl?.split('?')[0] &&
+    a.trip.coverKey === b.trip.coverKey &&
+    a.trip.coverTone === b.trip.coverTone &&
+    a.trip.status === b.trip.status &&
+    a.trip.memoryCount === b.trip.memoryCount &&
+    +a.trip.startsAt === +b.trip.startsAt &&
+    +a.trip.unlocksAt === +b.trip.unlocksAt &&
+    +(a.trip.createdAt ?? 0) === +(b.trip.createdAt ?? 0),
+);
 
 const styles = StyleSheet.create({
   // Matches the poster's rounded corners so the zoom starts from the card shape.

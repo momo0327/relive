@@ -1,7 +1,6 @@
 import { useIsFocused, useRouter } from 'expo-router';
 import type { SymbolViewProps } from 'expo-symbols';
 import { useEffect, useState } from 'react';
-import { BlurView } from 'expo-blur';
 import { Alert, RefreshControl, StyleSheet, View, type ViewProps } from 'react-native';
 
 import { formatBytes, formatDuration, formatRevealMoment, plural, splitDuration, spokenDuration } from '@/lib/format';
@@ -12,7 +11,7 @@ import { useLayout } from '@/ui/layout';
 import { CAPTURE_BAR_SPACE, CaptureBar } from '@/ui/capture-bar';
 import { TripHeroScroll } from '@/ui/trip-hero';
 import { Button, Card, Icon, Row, Txt } from '@/ui/primitives';
-import { radius, space, useTheme } from '@/ui/theme';
+import { lockedCardColors, radius, space, useTheme } from '@/ui/theme';
 import { useCountdown } from '@/ui/trip-visuals';
 
 export function LockedTripView({
@@ -65,7 +64,8 @@ export function LockedTripView({
         }
         contentContainerStyle={{ alignItems: 'center', paddingBottom: CAPTURE_BAR_SPACE }}>
         <View style={{ width: readableWidth, gap: space.lg }}>
-          <Frosted style={styles.panel}>
+          {/* The main card: a stronger tint. */}
+          <Frosted strong style={styles.panel}>
             <View style={[styles.lockBadge, { backgroundColor: inset(c.scheme) }]}>
               <Icon name="lock.fill" size={30} color={c.text} />
             </View>
@@ -151,17 +151,16 @@ function StatPill({ icon, value, label }: { icon: SymbolViewProps['name']; value
   );
 }
 
-/** Frosted, tinted glass over the blurred cover (the locked page's cards). */
-function Frosted({ style, children, ...rest }: ViewProps) {
+/**
+ * Tinted glass card over the (already blurred) cover. A plain translucent view,
+ * not a live blur, so the page stays fast to open and close.
+ */
+function Frosted({ style, children, strong = false, ...rest }: ViewProps & { strong?: boolean }) {
   const c = useTheme();
   return (
-    <BlurView
-      {...rest}
-      intensity={60}
-      tint={c.scheme === 'dark' ? 'systemThinMaterialDark' : 'systemThinMaterialLight'}
-      style={[style, { overflow: 'hidden', borderColor: c.scheme === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.6)' }]}>
+    <View {...rest} style={[style, lockedCardColors(c.scheme, strong)]}>
       {children}
-    </BlurView>
+    </View>
   );
 }
 
