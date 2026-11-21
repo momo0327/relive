@@ -1,5 +1,5 @@
-import { Link, Stack, useNavigation, useRouter } from 'expo-router';
-import { memo, useEffect, useState } from 'react';
+import { Link, Stack, useRouter } from 'expo-router';
+import { memo, useEffect } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { formatTripDates, plural } from '@/lib/format';
@@ -42,30 +42,6 @@ export default function MyTrips() {
   );
   const data = loaded ? loaded.map(withLocalCover) : null;
 
-  // While a trip zooms back into its card, iOS animates a temporary copy of
-  // the card. Scrolling during that animation left the copy behind while the
-  // real list moved, so cards looked like they moved separately and overlapped.
-  // Scrolling pauses from leaving this page until the transition back has
-  // finished (with a fallback in case that event never comes).
-  const navigation = useNavigation();
-  const [transitioning, setTransitioning] = useState(false);
-  useEffect(() => {
-    let fallback: ReturnType<typeof setTimeout> | undefined;
-    const offBlur = navigation.addListener('blur', () => setTransitioning(true));
-    const offFocus = navigation.addListener('focus', () => {
-      if (fallback) clearTimeout(fallback);
-      fallback = setTimeout(() => setTransitioning(false), 900);
-    });
-    const offEnd = navigation.addListener('transitionEnd' as never, ((e: { data?: { closing?: boolean } }) => {
-      if (!e.data?.closing) setTransitioning(false);
-    }) as never);
-    return () => {
-      if (fallback) clearTimeout(fallback);
-      offBlur();
-      offFocus();
-      offEnd();
-    };
-  }, [navigation]);
 
   // Keep this device's reminders and reveal alerts in step with the trip list.
   useEffect(() => {
@@ -147,7 +123,6 @@ export default function MyTrips() {
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
-        scrollEnabled={!transitioning}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} />}
         contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: space.xxxl, alignItems: 'center' }}>
         <View style={{ width: contentWidth, gap: space.xl, paddingTop: space.md }}>
