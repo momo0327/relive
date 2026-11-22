@@ -42,22 +42,29 @@ export default function MyTrips() {
   );
   const data = loaded ? loaded.map(withLocalCover) : null;
 
-  // Zoom in, fade out: opening a trip zooms from its card; while the trip is
-  // open the cards stop being zoom sources, so closing it fades out instead of
-  // flying the card back (which could land on top of other cards if the list
-  // was scrolled). Cards become zoom sources again once the trip has closed.
+  // Like Photos: while a closing trip's card is flying back into the list
+  // (iOS's zoom animation, ~0.45 s, measured from a screen recording), the list
+  // doesn't scroll. iOS animates the card to where it was when closing began,
+  // so scrolling during the flight made it land on top of other cards. The
+  // pause starts when the trip page starts closing and ends as the card lands.
+  // (iOS's own "transition ended" signal arrives at the start of the zoom, so
+  // it can't be used here.)
   const navigation = useNavigation();
-  const [zoomable, setZoomable] = useState(true);
+  const [cardFlying, setCardFlying] = useState(false);
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const later = (on: boolean, ms: number) => {
+    let wasAway = false;
+    const offBlur = navigation.addListener('blur', () => {
+      wasAway = true;
+    });
+    const offFocus = navigation.addListener('focus', () => {
+      // Only when coming back to the list, not when the app first opens.
+      if (!wasAway) return;
+      wasAway = false;
+      setCardFlying(true);
       if (timer) clearTimeout(timer);
-      timer = setTimeout(() => setZoomable(on), ms);
-    };
-    // After the opening zoom has finished.
-    const offBlur = navigation.addListener('blur', () => later(false, ZOOM_SETTLE_MS));
-    // After the closing fade has finished.
-    const offFocus = navigation.addListener('focus', () => later(true, ZOOM_SETTLE_MS));
+      timer = setTimeout(() => setCardFlying(false), CARD_FLIGHT_MS);
+    });
     return () => {
       if (timer) clearTimeout(timer);
       offBlur();
@@ -146,6 +153,7 @@ export default function MyTrips() {
       <ScrollView
         contentInsetAdjustmentBehavior="automatic"
         showsVerticalScrollIndicator={false}
+        scrollEnabled={!cardFlying}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} />}
         contentContainerStyle={{ paddingHorizontal: gutter, paddingBottom: space.xxxl, alignItems: 'center' }}>
         <View style={{ width: contentWidth, gap: space.xl, paddingTop: space.md }}>
@@ -161,7 +169,7 @@ export default function MyTrips() {
           ) : (
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.lg }}>
               {trips.map((trip) => (
-                <TripCard key={trip.id} trip={trip} width={cardWidth} zoomable={zoomable} />
+                <TripCard key={trip.id} trip={trip} width={cardWidth} />
               ))}
             </View>
           )}
@@ -171,13 +179,13 @@ export default function MyTrips() {
   );
 }
 
-/** Long enough for the opening zoom or closing fade to finish. */
-const ZOOM_SETTLE_MS = 650;
+/** How long iOS's zoom-back animation takes to land the card (from a recording). */
+const CARD_FLIGHT_MS = 450;
 
 // Redrawn only when what the card shows changes, so returning home (or a
 // background refresh) doesn't re-lay out the cards under the zoom-back animation.
 const TripCard = memo(
-  function TripCard({ trip, width, zoomable }: { trip: TripSummary; width: number; zoomable: boolean }) {
+  function TripCard({ trip, width }: { trip: TripSummary; width: number }) {
     const a11y = [
       trip.name,
       formatTripDates(trip.startsAt, trip.unlocksAt),
@@ -185,18 +193,6 @@ const TripCard = memo(
       plural(trip.memoryCount, 'memory', 'memories'),
     ].join(', ');
 
-    const poster = (
-      <View style={styles.zoomSource}>
-        <TripPoster
-          name={trip.name}
-          coverUrl={trip.coverUrl}
-          coverKey={trip.coverKey}
-          tone={trip.coverTone}
-          seed={trip.id}
-          createdAt={trip.createdAt}
-        />
-      </View>
-    );
     // iOS zoom transition: the card grows to fill the screen and settles into the
     // trip page's banner (Link.AppleZoomTarget in TripHero).
     return (
@@ -208,13 +204,23 @@ const TripCard = memo(
           setTripPreview(trip);
         }}>
         <Pressable accessibilityRole="button" accessibilityLabel={a11y} style={{ width }}>
-          {zoomable ? <Link.AppleZoom>{poster}</Link.AppleZoom> : poster}
+          <Link.AppleZoom>
+            <View style={styles.zoomSource}>
+              <TripPoster
+                name={trip.name}
+                coverUrl={trip.coverUrl}
+                coverKey={trip.coverKey}
+                tone={trip.coverTone}
+                seed={trip.id}
+                createdAt={trip.createdAt}
+              />
+            </View>
+          </Link.AppleZoom>
         </Pressable>
       </Link>
     );
   },
   (a, b) =>
-    a.zoomable === b.zoomable &&
     a.width === b.width &&
     a.trip.id === b.trip.id &&
     a.trip.name === b.trip.name &&
