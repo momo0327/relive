@@ -5,7 +5,6 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState, type ReactElement, type ReactNode } from 'react';
 import { StyleSheet, View, type RefreshControlProps, type StyleProp, type ViewStyle } from 'react-native';
 import Animated, {
-  FadeIn,
   Extrapolation,
   interpolate,
   useAnimatedReaction,
@@ -117,13 +116,6 @@ export function TripHeroScroll({
     opacity: interpolate(y.value, [stickAt - 12, stickAt], [0, 1], Extrapolation.CLAMP),
   }));
 
-  const [immersiveReady, setImmersiveReady] = useState(false);
-  useEffect(() => {
-    if (!immersive) return;
-    const timer = setTimeout(() => setImmersiveReady(true), 450);
-    return () => clearTimeout(timer);
-  }, [immersive]);
-
   const header = (
     <>
       {/* Light status bar text over the photo, while this screen is visible. */}
@@ -143,11 +135,9 @@ export function TripHeroScroll({
           pointerEvents="none"
         />
         {/* Revealed page: the photo as it is, no fade or blur. */}
-        {immersive && immersiveReady ? (
-          // Built only after the zoom transition, then faded in, so opening the trip stays smooth.
-          <Animated.View entering={FadeIn.duration(220)} pointerEvents="none" style={styles.immersiveLayer}>
-            <ImmersiveCover trip={trip} width={width} height={height + IMMERSIVE_EXTRA} />
-          </Animated.View>
+        {immersive ? (
+          // Drawn with the page (it's cheap: a tiny blurred copy plus a few slices).
+          <ImmersiveCover trip={trip} width={width} height={height + IMMERSIVE_EXTRA} />
         ) : null}
         {/* Name and dates are the header's title (crisp, see the trip screen); members sit just below. */}
         <View style={[styles.text, { top: insets.top + 50, left: 64, right: 64 }]}>
@@ -237,7 +227,7 @@ const IMMERSIVE_EXTRA = 160;
 /** The sharp photo fades into the blurred copy over this range (fractions of the height), in thin steps. */
 const FADE_FROM = 0.4;
 const FADE_TO = 0.72;
-const FADE_STEPS = 6;
+const FADE_STEPS = 4;
 /** The blurred copy is drawn this many times smaller, then scaled up. */
 const BLUR_SCALE = 10;
 
@@ -318,7 +308,6 @@ function ImmersiveCover({ trip, width, height }: { trip: TripDetail; width: numb
 const AnimatedFlashList = Animated.createAnimatedComponent(FlashList as any) as any;
 
 const styles = StyleSheet.create({
-  immersiveLayer: { position: 'absolute', left: 0, right: 0, top: 0 },
   sticky: {
     position: 'absolute',
     top: 0,

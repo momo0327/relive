@@ -39,8 +39,6 @@ export function CaptureBar({
           styles.pill,
           styles.pillBorder,
           lockedCardColors(c.scheme),
-          // A soft shadow so it floats above the page.
-          { shadowOpacity: c.scheme === 'dark' ? 0.45 : 0.14 },
         ]}>
         <PillButton icon="photo.fill.on.rectangle.fill" label="Upload" busy={uploading} onPress={onUpload} />
         <PillButton icon="person.fill.badge.plus" label="Invite" onPress={onInvite} />
@@ -102,12 +100,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: space.md,
   },
-  pillBorder: {
-    borderWidth: StyleSheet.hairlineWidth,
-    shadowColor: '#000',
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-  },
+  pillBorder: { borderWidth: StyleSheet.hairlineWidth },
   pill: { flexDirection: 'row', alignItems: 'center', borderRadius: 999, height: 68, padding: 4, gap: 2 },
   pillButton: { alignItems: 'center', justifyContent: 'center', width: 76, height: 60, borderRadius: 30 },
   camera: { alignItems: 'center', justifyContent: 'center', width: 68, height: 68, borderRadius: 34 },
