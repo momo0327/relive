@@ -27,9 +27,10 @@ export default function TripOptions() {
     return error ? (
       <ErrorState message={error} onRetry={reload} />
     ) : (
-      <View style={{ padding: space.xl }}>
+      // Same layout as the loaded page, so the placeholders sit where the rows will be.
+      <SheetLayout>
         <SkeletonRows count={3} />
-      </View>
+      </SheetLayout>
     );
   }
 

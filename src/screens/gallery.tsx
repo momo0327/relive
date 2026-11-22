@@ -6,6 +6,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import {
+  PanResponder,
   Platform,
   PlatformColor,
   Pressable,
@@ -35,6 +36,8 @@ import { haptic, withTap } from '@/ui/haptics';
 
 type Filter = 'all' | 'photo' | 'video' | 'liked';
 const GAP = 10;
+/** Filter order for swiping left / right. */
+const SWIPE_ORDER: Filter[] = ['all', 'photo', 'video', 'liked'];
 
 /** Tile aspect (height / width), clamped so very tall or wide shots stay tidy. */
 function tileRatio(item: MediaItem) {
@@ -115,6 +118,25 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
   });
   const onTilePress = useCallback((id: string, index: number) => tileAction.current(id, index), []);
 
+  // Swipe left / right anywhere on the gallery to move between the filters
+  // (All → Photos → Videos → Favourites), like the segmented control.
+  const [filterSwipe] = useState(() =>
+    PanResponder.create({
+      // Only clear sideways swipes; vertical scrolling stays with the list.
+      onMoveShouldSetPanResponderCapture: (_e, g) => Math.abs(g.dx) > 24 && Math.abs(g.dx) > Math.abs(g.dy) * 2.2,
+      onPanResponderTerminationRequest: () => true,
+      onPanResponderRelease: (_e, g) => {
+        if (Math.abs(g.dx) < 50 && Math.abs(g.vx) < 0.4) return;
+        setFilter((current) => {
+          const next = SWIPE_ORDER[SWIPE_ORDER.indexOf(current) + (g.dx < 0 ? 1 : -1)];
+          if (!next) return current;
+          haptic.select();
+          return next;
+        });
+      },
+    }),
+  );
+
 
   async function saveSelected() {
     if (!selected?.size) return;
@@ -123,7 +145,8 @@ export function GalleryView({ trip, onStuckChange }: { trip: TripDetail; onStuck
   }
 
   return (
-    <View style={{ flex: 1 }}>
+    // No filter swiping while choosing memories to save.
+    <View style={{ flex: 1 }} {...(selected ? null : filterSwipe.panHandlers)}>
       <TripHeroScroll
         trip={trip}
         // The filter stays pinned under the header while scrolling the grid.
