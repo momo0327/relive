@@ -36,6 +36,7 @@ import type { MediaItem } from '@/lib/types';
 import { getViewerEntry, setViewerItems } from '@/lib/viewer-cache';
 import { playTick, warmTick } from '@/lib/tick-sound';
 import { useVideoThumbnail } from '@/lib/video-thumbs';
+import { clearSignedMedia } from '@/lib/live-backend';
 import { fullKey, previewSource } from '@/lib/media-keys';
 import { haptic, withTap } from '@/ui/haptics';
 import { chooseReportReason } from '@/screens/report';
@@ -109,6 +110,8 @@ export default function Viewer() {
   // Signed URLs are short-lived; refresh the set if one stops working.
   const refreshUrls = useCallback(async () => {
     try {
+      // A link stopped working: don't reuse cached ones, sign afresh.
+      clearSignedMedia();
       const fresh = await backend.listMedia(tripId);
       const byId = new Map(fresh.map((m) => [m.id, m]));
       setItems((prev) => {
@@ -756,7 +759,8 @@ function VideoPage({
 
 function ActiveVideo({ url, onError, onPlayer }: { url: string; onError: () => void; onPlayer: (p: VideoPlayer | null) => void }) {
   const [shown, setShown] = useState(false);
-  const player = useVideoPlayer(url, (p) => {
+  // Cached on the phone: watching it again doesn't download it again.
+  const player = useVideoPlayer(url ? { uri: url, useCaching: true } : null, (p) => {
     p.loop = true;
     p.timeUpdateEventInterval = 0.05;
     // Start as soon as a little is buffered instead of waiting for more.

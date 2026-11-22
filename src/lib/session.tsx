@@ -8,7 +8,7 @@ import { createContext, use, useCallback, useEffect, useMemo, useState, type Rea
 import type { Backend } from './backend';
 import { readJson, removeJson, writeJson } from './kv';
 import { cancelAllTripNotifications } from './notifications';
-import { liveBackend } from './live-backend';
+import { clearSignedMedia, liveBackend } from './live-backend';
 import { previewBackend, resetPreview } from './preview-backend';
 import { supabase } from './supabase';
 
@@ -150,6 +150,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       return;
     }
     await cancelAllTripNotifications();
+    clearSignedMedia();
     await supabase?.auth.signOut({ scope: 'local' });
   }, [preview]);
 

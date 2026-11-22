@@ -9,7 +9,7 @@ import type { NewMedia } from './types';
 export class PrepError extends Error {}
 
 /** Local copies live here until the server confirms the upload. */
-export const uploadsDir = new Directory(Paths.document, 'pending-uploads');
+const uploadsDir = new Directory(Paths.document, 'pending-uploads');
 
 /** Moves files the app owns (camera/picker copies in Caches); copies anything else. */
 function adopt(source: File, target: File) {

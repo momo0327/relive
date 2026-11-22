@@ -1,7 +1,7 @@
 import { File } from 'expo-file-system';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
 
-export type Tone = 'light' | 'dark';
+type Tone = 'light' | 'dark';
 
 /** Average luma (0–255) above which a cover counts as light, so the title turns black. */
 const LIGHT_THRESHOLD = 150;
@@ -13,7 +13,7 @@ const LIGHT_THRESHOLD = 150;
  * 8×8 block, which here is the whole image. No pixel-access library needed.
  */
 /** Average brightness (0–255) of the title band of a local image, or null if unreadable. */
-export async function measureLuma(uri: string): Promise<number | null> {
+async function measureLuma(uri: string): Promise<number | null> {
   try {
     const full = await ImageManipulator.manipulate(uri).renderAsync();
     const { width, height } = full;
@@ -42,7 +42,7 @@ export async function measureTone(uri: string): Promise<Tone> {
 }
 
 /** Decodes only the first luminance DC value of a baseline JPEG. Returns null if unsupported. */
-export function jpegAverageLuma(bytes: Uint8Array): number | null {
+function jpegAverageLuma(bytes: Uint8Array): number | null {
   const quant = new Map<number, number>(); // table id → first coefficient (DC quantizer)
   const dcTables = new Map<number, Map<string, number>>(); // table id → code → symbol
   let lumaComponent = -1;

@@ -36,6 +36,11 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       NSMicrophoneUsageDescription: micText,
       NSPhotoLibraryUsageDescription: photosText,
       NSPhotoLibraryAddUsageDescription: savePhotosText,
+      // HTTPS only (Supabase, Unsplash); plain HTTP just for the local dev server.
+      NSAppTransportSecurity: {
+        NSAllowsArbitraryLoads: false,
+        NSExceptionDomains: { localhost: { NSExceptionAllowsInsecureHTTPLoads: true } },
+      },
     },
     privacyManifests: {
       NSPrivacyTracking: false,
@@ -68,7 +73,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     // White "relive" wordmark on black (reliveSplash.png design), same in light and dark mode.
     ['expo-splash-screen', { image: './assets/images/splash-icon.png', backgroundColor: '#000000', imageWidth: 125 }],
     'expo-apple-authentication',
-    'expo-secure-store',
+    // No Face ID: secure storage is only used for the sign-in session.
+    ['expo-secure-store', { faceIDPermission: false }],
     'expo-web-browser',
     'expo-sharing',
     '@react-native-community/datetimepicker',

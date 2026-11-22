@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLayout } from '@/ui/layout';
 import { space } from '@/ui/theme';
 
-export const VIEWFINDER_RADIUS = 36;
+const VIEWFINDER_RADIUS = 36;
 /** Height of the row under the main controls (Photo / Video), kept on the preview too so nothing moves. */
 const BELOW_HEIGHT = 36;
 const CONTROLS_HEIGHT = 82;

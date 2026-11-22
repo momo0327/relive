@@ -1,5 +1,5 @@
 /** Trip end date as the user thinks of it: the day before the midnight reveal. */
-export function lastTripDay(unlocksAt: Date): Date {
+function lastTripDay(unlocksAt: Date): Date {
   return new Date(unlocksAt.getTime() - 1);
 }
 
@@ -40,7 +40,7 @@ export function plural(n: number, one: string, many = `${one}s`) {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-export type CountdownParts = { days: number; hours: number; minutes: number; seconds: number };
+type CountdownParts = { days: number; hours: number; minutes: number; seconds: number };
 
 export function splitDuration(ms: number): CountdownParts {
   const s = Math.max(0, Math.floor(ms / 1000));

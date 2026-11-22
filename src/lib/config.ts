@@ -28,5 +28,6 @@ export const limits = {
   maxPhotoEdge: 3072,
   photoQuality: 0.85,
   pickerSelectionLimit: 20,
-  signedUrlSeconds: 600,
+  /** Signed links to revealed memories; reused until close to expiry (see live-backend). */
+  signedUrlSeconds: 2 * 60 * 60,
 } as const;

@@ -22,7 +22,7 @@ const dark = {
   frostStrong: 'rgba(255,255,255,0.1)',
 };
 
-export type Palette = typeof dark;
+type Palette = typeof dark;
 
 const light: Palette = {
   scheme: 'light',

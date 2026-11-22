@@ -32,6 +32,37 @@ async function rpc<T>(fn: string, args?: Record<string, unknown>): Promise<T> {
   return data as T;
 }
 
+/**
+ * Signed links to memories, reused while they're valid instead of new ones on
+ * every refresh. Same link = the phone's caches (images by key, videos by link)
+ * keep working, so files aren't downloaded again. Signing still goes through
+ * the storage read policy, which re-checks membership and the reveal.
+ */
+const signedMedia = new Map<string, { url: string; expiresAt: number }>();
+const REUSE_MARGIN_MS = 15 * 60 * 1000;
+
+async function signMediaPaths(paths: string[]): Promise<Map<string, string>> {
+  const now = Date.now();
+  const missing = [...new Set(paths)].filter((p) => {
+    const hit = signedMedia.get(p);
+    return !hit || hit.expiresAt - now < REUSE_MARGIN_MS;
+  });
+  if (missing.length) {
+    const { data } = await requireSupabase().storage.from('trip-media').createSignedUrls(missing, limits.signedUrlSeconds);
+    const expiresAt = now + limits.signedUrlSeconds * 1000;
+    for (const s of data ?? []) if (s.signedUrl && s.path) signedMedia.set(s.path, { url: s.signedUrl, expiresAt });
+  }
+  return new Map(paths.flatMap((p) => {
+    const hit = signedMedia.get(p);
+    return hit ? [[p, hit.url] as const] : [];
+  }));
+}
+
+/** Forget cached links (e.g. after a link stopped working, or on sign-out). */
+export function clearSignedMedia() {
+  signedMedia.clear();
+}
+
 async function signCovers(paths: string[]): Promise<Map<string, string>> {
   const unique = [...new Set(paths)];
   if (!unique.length) return new Map();
@@ -209,14 +240,7 @@ export const liveBackend: Backend = {
       uploader_id: string; uploader_name: string; is_mine: boolean; liked?: boolean; thumb_path?: string | null;
     }[]>('list_trip_media', { p_trip: tripId });
     if (!rows.length) return [];
-    // Signing goes through the storage read policy, which re-checks the reveal.
-    const { data: signed } = await requireSupabase()
-      .storage.from('trip-media')
-      .createSignedUrls(
-        rows.flatMap((r) => (r.thumb_path ? [r.storage_path, r.thumb_path] : [r.storage_path])),
-        limits.signedUrlSeconds,
-      );
-    const urls = new Map((signed ?? []).flatMap((s) => (s.signedUrl && s.path ? [[s.path, s.signedUrl] as const] : [])));
+    const urls = await signMediaPaths(rows.flatMap((r) => (r.thumb_path ? [r.storage_path, r.thumb_path] : [r.storage_path])));
     return rows.map<MediaItem>((r) => ({
       id: r.id,
       kind: r.kind,

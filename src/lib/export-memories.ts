@@ -3,7 +3,7 @@ import * as MediaLibrary from 'expo-media-library';
 
 import type { MediaItem } from './types';
 
-export type ExportResult = { saved: number; failed: number };
+type ExportResult = { saved: number; failed: number };
 
 /** Local temp copy of one memory, named by id so the extension is right for Photos. */
 async function downloadToCache(item: MediaItem): Promise<File> {

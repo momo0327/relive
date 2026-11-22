@@ -79,7 +79,7 @@ export function Breathing({ active, children, style }: { active: boolean; childr
 }
 
 /** Wrapper that announces loading once for a group of skeleton blocks. */
-export function SkeletonGroup({ label = 'Loading', style, children }: { label?: string; style?: StyleProp<ViewStyle>; children: React.ReactNode }) {
+function SkeletonGroup({ label = 'Loading', style, children }: { label?: string; style?: StyleProp<ViewStyle>; children: React.ReactNode }) {
   return (
     <View style={style} accessible accessibilityLabel={label} accessibilityRole="progressbar">
       {children}

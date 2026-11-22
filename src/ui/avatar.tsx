@@ -6,7 +6,7 @@ import { Txt } from './primitives';
 /** Colours offered in Edit Profile; also the deterministic fallback palette. */
 export const AVATAR_COLORS = ['#7C6FE0', '#5B7FD6', '#4FA3A5', '#6E9E4F', '#B5913A', '#D9825B', '#E0605E', '#C2589B'];
 
-export function tintFor(id: string) {
+function tintFor(id: string) {
   let hash = 0x811c9dc5;
   for (let i = 0; i < id.length; i += 1) hash = Math.imul(hash ^ id.charCodeAt(i), 0x01000193);
   return AVATAR_COLORS[(hash >>> 0) % AVATAR_COLORS.length];
@@ -18,7 +18,7 @@ export function initials(name: string) {
 }
 
 /** Storage path of a signed URL (without the expiring token), for image caching. */
-export function stableKey(url: string) {
+function stableKey(url: string) {
   return url.split('?')[0];
 }
 
