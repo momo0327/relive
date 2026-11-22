@@ -358,6 +358,37 @@ await test('only the organizer can rename a trip, with the same name rules', asy
   assert.equal(name, 'New name');
 });
 
+await test('invite preview shows the trip cover, not memories, only with a valid invite', async () => {
+  const t = (await as('bob', `select public.create_trip('Card', $1, $2) as id`, [iso(0), iso(day)])).rows[0].id;
+  const cover = `${t}/cover-11111111-1111-4111-8111-111111111111.jpg`;
+  await as('bob', `insert into storage.objects (bucket_id, name, metadata) values ('trip-covers', $1, '{}')`, [cover]);
+  await as('bob', `select public.set_trip_cover($1, $2, 'light')`, [t, cover]);
+  const readCover = (who) => as(who, `select name from storage.objects where bucket_id = 'trip-covers' and name = $1`, [cover]);
+
+  // Without previewing an invite: no cover.
+  assert.equal((await readCover('mallory')).rows.length, 0);
+
+  const tok = (await as('bob', `select public.create_invite($1) as t`, [t])).rows[0].t;
+  const preview = (await as('carol', `select public.preview_invite($1) as p`, [tok])).rows[0].p;
+  assert.equal(preview.cover_path, cover);
+  assert.equal(preview.cover_tone, 'light');
+  assert.ok(preview.created_at);
+  assert.equal((await readCover('carol')).rows.length, 1, 'invitee can load the cover');
+  // Still not a member: no trip data, no memories.
+  await rejects(as('carol', `select public.get_trip($1)`, [t]), /not_found/);
+  assert.equal((await as('carol', `select * from public.media where trip_id = $1`, [t])).rows.length, 0);
+  // Someone else without the invite still can't.
+  assert.equal((await readCover('mallory')).rows.length, 0);
+  await rejects(as('carol', `select * from public.invite_previews`), /permission denied/);
+
+  // A removed (banned) member gets no cover.
+  await as('carol', `select public.accept_invite($1)`, [tok]);
+  await as('bob', `select public.remove_member($1, $2)`, [t, users.carol]);
+  const again = (await as('carol', `select public.preview_invite($1) as p`, [tok])).rows[0].p;
+  assert.equal(again.banned, true);
+  assert.equal(again.cover_path, null);
+});
+
 await test('anon role cannot call RPCs', async () => {
   await rejects(
     db.transaction(async (tx) => {

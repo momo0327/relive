@@ -61,6 +61,11 @@ export type MediaItem = {
 export type InvitePreview = {
   tripId: string;
   name: string;
+  /** The trip's cover, shown on the join page as the same card as on the home page. */
+  coverUrl: string | null;
+  coverKey: string | null;
+  coverTone: 'light' | 'dark';
+  createdAt: Date | null;
   startsAt: Date;
   unlocksAt: Date;
   memberCount: number;

@@ -179,11 +179,18 @@ export const liveBackend: Backend = {
     const data = await rpc<null | {
       trip_id: string; name: string; starts_at: string; unlocks_at: string;
       member_count: number; owner_name: string; already_member: boolean; banned: boolean;
+      created_at?: string | null; cover_path?: string | null; cover_tone?: string | null;
     }>('preview_invite', { p_token: token });
     if (!data) return null;
+    // Previewing a valid invite lets this user load the trip's cover (not its memories).
+    const covers = await signCovers(data.cover_path ? [data.cover_path] : []);
     return {
       tripId: data.trip_id,
       name: data.name,
+      coverUrl: data.cover_path ? (covers.get(data.cover_path) ?? null) : null,
+      coverKey: data.cover_path ?? null,
+      coverTone: data.cover_path && data.cover_tone === 'light' ? 'light' : 'dark',
+      createdAt: data.created_at ? new Date(data.created_at) : null,
       startsAt: new Date(data.starts_at),
       unlocksAt: new Date(data.unlocks_at),
       memberCount: data.member_count,

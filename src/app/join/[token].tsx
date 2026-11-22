@@ -11,8 +11,8 @@ import type { InvitePreview } from '@/lib/types';
 import { useLayout } from '@/ui/layout';
 import { Button, Card, Icon, Row, Txt } from '@/ui/primitives';
 import { LoadingState, MessageState } from '@/ui/states';
-import { space, useTheme } from '@/ui/theme';
-import { Cover } from '@/ui/trip-visuals';
+import { radius, space, useTheme } from '@/ui/theme';
+import { TripPoster } from '@/ui/trip-poster';
 
 export default function JoinTrip() {
   const { token: raw } = useLocalSearchParams<{ token: string }>();
@@ -90,19 +90,25 @@ export default function JoinTrip() {
   return (
     <ScrollView showsVerticalScrollIndicator={false} contentInsetAdjustmentBehavior="automatic" contentContainerStyle={{ alignItems: 'center', padding: space.xl }}>
       <View style={{ width: readableWidth, gap: space.xl }}>
-        <Cover uri={null} cacheKey={null} seed={preview.tripId} style={{ height: 200 }}>
-          <View style={{ padding: space.xl, gap: space.xs }}>
-            <Txt variant="footnote" style={{ color: 'rgba(255,255,255,0.8)' }}>
-              {preview.ownerName} invited you to
-            </Txt>
-            <Txt variant="title" style={{ color: '#fff' }}>
-              {preview.name}
-            </Txt>
-            <Txt variant="subhead" style={{ color: 'rgba(255,255,255,0.8)' }}>
-              {formatTripDates(preview.startsAt, preview.unlocksAt)} · {plural(preview.memberCount, 'member')}
-            </Txt>
+        <View style={{ gap: space.md, alignItems: 'center' }}>
+          <Txt variant="callout" tone="secondary" style={{ textAlign: 'center' }}>
+            {preview.alreadyMember ? 'You’re already in this trip' : `${preview.ownerName} invited you to`}
+          </Txt>
+          {/* The same card as on the home page. */}
+          <View style={{ width: '100%', borderRadius: radius.lg, overflow: 'hidden' }}>
+            <TripPoster
+              name={preview.name}
+              coverUrl={preview.coverUrl}
+              coverKey={preview.coverKey}
+              tone={preview.coverTone}
+              seed={preview.tripId}
+              createdAt={preview.createdAt}
+            />
           </View>
-        </Cover>
+          <Txt variant="subhead" tone="secondary" style={{ textAlign: 'center' }}>
+            {formatTripDates(preview.startsAt, preview.unlocksAt)} · {plural(preview.memberCount, 'member')}
+          </Txt>
+        </View>
 
         <Card style={{ gap: space.md }}>
           <Row style={{ alignItems: 'flex-start' }} gap={space.md}>
