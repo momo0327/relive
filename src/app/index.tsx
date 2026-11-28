@@ -1,5 +1,5 @@
 import { Link, Stack, useNavigation, useRouter } from 'expo-router';
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 
 import { formatTripDates, plural } from '@/lib/format';
@@ -179,6 +179,9 @@ export default function MyTrips() {
   );
 }
 
+/** A tap may wobble this much (points); anything more is a swipe and doesn't open the card. */
+const TAP_SLOP = 8;
+
 /** How long iOS's zoom-back animation takes to land the card (from a recording). */
 const CARD_FLIGHT_MS = 450;
 
@@ -186,6 +189,7 @@ const CARD_FLIGHT_MS = 450;
 // background refresh) doesn't re-lay out the cards under the zoom-back animation.
 const TripCard = memo(
   function TripCard({ trip, width }: { trip: TripSummary; width: number }) {
+    const touchStart = useRef<{ x: number; y: number } | null>(null);
     const a11y = [
       trip.name,
       formatTripDates(trip.startsAt, trip.unlocksAt),
@@ -199,11 +203,24 @@ const TripCard = memo(
       <Link
         href={`/trips/${trip.id}`}
         asChild
-        onPress={() => {
+        onPress={(e) => {
+          // A swipe that started on a card (even a short one) must scroll, never open it.
+          const start = touchStart.current;
+          const { pageX, pageY } = e.nativeEvent;
+          if (start && Math.hypot(pageX - start.x, pageY - start.y) > TAP_SLOP) {
+            e.preventDefault();
+            return;
+          }
           haptic.tap();
           setTripPreview(trip);
         }}>
-        <Pressable accessibilityRole="button" accessibilityLabel={a11y} style={{ width }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={a11y}
+          style={{ width }}
+          onPressIn={(e) => {
+            touchStart.current = { x: e.nativeEvent.pageX, y: e.nativeEvent.pageY };
+          }}>
           <Link.AppleZoom>
             <View style={styles.zoomSource}>
               <TripPoster

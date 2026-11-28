@@ -1,4 +1,4 @@
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
+import { Stack, useLocalSearchParams, usePreventZoomTransitionDismissal, useRouter } from 'expo-router';
 import { View } from 'react-native';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -18,6 +18,9 @@ export default function TripScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { backend } = useSession();
+  // Swipe-to-close (the card zooming back) only from the left edge, like a
+  // normal back swipe, so sideways swipes in the gallery change filters instead.
+  usePreventZoomTransitionDismissal({ unstable_dismissalBoundsRect: { maxX: 30 } });
   const c = useTheme();
   // Once the gallery filter is pinned, the header sits on the page colour instead of the photo.
   const [stuck, setStuck] = useState(false);

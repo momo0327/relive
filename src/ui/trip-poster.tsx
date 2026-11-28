@@ -20,7 +20,10 @@ export function TripPoster({
   seed,
   createdAt,
   style,
+  compact = false,
 }: {
+  /** Small card (e.g. the invite sheet): smaller title and date. */
+  compact?: boolean;
   /** Shows "NOVEMBER" / "NOVEMBER 2025" under the title. */
   createdAt?: Date | null;
   name: string;
@@ -48,11 +51,11 @@ export function TripPoster({
           variant="largeTitle"
           numberOfLines={3}
           maxFontSizeMultiplier={1.4}
-          style={[styles.title, { color: titleColor }]}>
+          style={[styles.title, compact && styles.titleCompact, { color: titleColor }]}>
           {name.toLocaleUpperCase()}
         </Txt>
         {createdAt ? (
-          <Txt maxFontSizeMultiplier={1.3} style={[styles.date, { color: titleColor }]}>
+          <Txt maxFontSizeMultiplier={1.3} style={[styles.date, compact && styles.dateCompact, { color: titleColor }]}>
             {formatCreatedMonth(createdAt)}
           </Txt>
         ) : null}
@@ -62,6 +65,8 @@ export function TripPoster({
 }
 
 const styles = StyleSheet.create({
+  titleCompact: { fontSize: 24, lineHeight: 25 },
+  dateCompact: { fontSize: 9, letterSpacing: 1.5, marginTop: 0 },
   // Upper part of the card, like a travel poster.
   titleWrap: { alignItems: 'center', justifyContent: 'flex-start', paddingHorizontal: space.xl, paddingTop: '11%' },
   date: { fontFamily: 'Poppins_500Medium', fontSize: 15, letterSpacing: 2.5, marginTop: -2, textAlign: 'center' },
